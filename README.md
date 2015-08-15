@@ -29,14 +29,15 @@ As main.py:
     h = RemoteHost(hostname)
 	h.execute('xxx')
 	result = h.eval('xxx')
+	h.run_single('xxx; xxx')
 	h.close()
 
 ## difference between execute and eval
 
-Eval just accept a sigle expression, and will evaluate it as the return value.
+eval just accept a sigle expression, and will evaluate it as the return value.
 
-Execute accept a sequence of statements, but just return None.
+execute accept a sequence of statements, but just return None.
+
+run_single accept a single interactive statement. print every thing other than None.
 
 You can get more information from [python doc](https://docs.python.org/2/library/functions.html#compile).
-
-Be attention, function eval use single mode, so it accept more then one statement in one line.
