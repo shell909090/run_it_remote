@@ -38,3 +38,5 @@ Eval just accept a sigle expression, and will evaluate it as the return value.
 Execute accept a sequence of statements, but just return None.
 
 You can get more information from [python doc](https://docs.python.org/2/library/functions.html#compile).
+
+Be attention, function eval use single mode, so it accept more then one statement in one line.

@@ -36,3 +36,5 @@ eval只接受一个表达式，会返回表达式的值。
 execute可以接受一系列语句（甚至是一个模块），但是只会返回None。
 
 你可以在[python doc](https://docs.python.org/2/library/functions.html#compile)找到更多信息。
+
+注意eval实质上是single模式，因此可以接受一行内多个语句。
