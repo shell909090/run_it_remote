@@ -47,6 +47,10 @@ class BaseInstance(object):
         self.write(['exec', self.check_f(f)])
         return self.loop()
 
+    def run_single(self, f):
+        self.write(['sngl', self.check_f(f)])
+        return self.loop()
+
     def call(self, f, *p):
         self.execute(f)
         return self.eval('%s(%s)' % (f.__name__, str(p)[1:-1]))
@@ -91,14 +95,16 @@ class RemoteInstance(ProcessInstance):
     def __repr__(self): return self.host
 
 class NetInstance(BaseInstance):
-    def __init__(self, host, port):
+    def __init__(self, addr):
+        host, port = addr.rsplit(':', 1)
+        port = int(port)
         import socket
         self.s = socket.socket()
         self.s.connect((host, port))
         self.stdin = self.stdout = self.s.makefile('rw')
-        self.host = host
+        self.addr = addr
 
-    def __repr__(self): return self.host
+    def __repr__(self): return self.addr
 
     def close(self):
         self.write(['exit',])
@@ -124,25 +130,18 @@ def main():
     ilist = []
     if '-n' in optdict:
         for addr in optdict['-n'].split(','):
-            host, port = addr.rsplit(':', 1)
-            port = int(port)
-            ilist.append(NetInstance(host, port))
-    else:
+            ilist.append(NetInstance(addr))
+    elif '-m' in optdict:
         for machine in optdict['-m'].split(','):
             ilist.append(RemoteInstance(machine))
+    else:
+        print 'neither network(-n) nor machine(-m) in parameters, quit.'
+        return
 
-    import re, pprint
-    re_cmd = re.compile('(\S*)\(.*\)')
     for command in args:
-        modname = None
-        m = re_cmd.match(command)
-        if m: modname = m.group(1).rsplit('.', 1)[0]
         for i in ilist:
-            if modname: i.execute('import ' + modname)
-            r = i.eval(command)
             print '----------%s output: %s-----------' % (str(i), command)
-            pprint.pprint(r)
-
+            i.run_single(command)
     for i in ilist: i.close()
 
 if __name__ == '__main__': main()
