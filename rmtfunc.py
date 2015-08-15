@@ -5,7 +5,6 @@
 @author: shell.xu
 '''
 import subprocess
-import bs4, six
 
 def get_hostname():
     with open('/etc/hostname') as fi:
@@ -13,7 +12,6 @@ def get_hostname():
 
 def get_dpkg():
     rslt = []
-    print dir(bs4)
     for i, line in enumerate(subprocess.check_output(['dpkg', '-l']).splitlines()):
         if i < 6: continue
         # if line.startswith('ii'): continue
