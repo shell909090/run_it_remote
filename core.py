@@ -1,4 +1,10 @@
-import os, sys, imp, zlib, getopt, struct, marshal, StringIO, tempfile
+#!/usr/bin/python
+# -*- coding: utf-8 -*-
+'''
+@date: 2015-08-14
+@author: shell.xu
+'''
+import os, sys, imp, zlib, struct, marshal
 
 def add_module(name):
     if name not in sys.modules:
@@ -21,6 +27,7 @@ class SrcLoader(Loader):
 
 class ExtLoader(Loader):
     def load_module(self, fullname):
+        import tempfile
         with tempfile.NamedTemporaryFile('wb') as tmp:
             tmp.write(self.src)
             tmp.flush()
@@ -68,8 +75,6 @@ def loop():
         if o[0] == 'exit': break
         if o[0] == 'exec': co = compile(o[1], '<exec>', 'exec')
         elif o[0] == 'eval': co = compile(o[1], '<eval>', 'eval')
-        elif o[0] == 'aply':
-            pass
         write(['rslt', eval(co, g)])
 
 def main_exec():
@@ -107,6 +112,7 @@ def main_net(host, port):
         loop()
 
 def main():
+    import getopt
     optlist, args = getopt.getopt(sys.argv[1:], 'hn:')
     optdict = dict(optlist)
     if '-h' in optdict:

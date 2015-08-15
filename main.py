@@ -4,8 +4,7 @@
 @date: 2015-08-14
 @author: shell.xu
 '''
-import os, sys, imp, zlib, getopt, socket, struct, pprint
-import inspect, marshal, subprocess
+import os, sys, imp, zlib, struct, marshal
 
 BOOTSTRAP = '''import sys, zlib, marshal; exec compile(zlib.decompress(marshal.load(sys.stdin)), '<core>', 'exec')'''
 
@@ -34,6 +33,7 @@ class BaseInstance(object):
 
     @staticmethod
     def check_f(f):
+        import inspect
         if hasattr(f, '__call__'):
             f = inspect.getsource(f)
         assert isinstance(f, basestring)
@@ -53,6 +53,7 @@ class BaseInstance(object):
 
 class ProcessInstance(BaseInstance):
     def start(self, cmd):
+        import subprocess
         self.p = subprocess.Popen(
             cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         with open('core.py', 'r') as fi:
@@ -91,6 +92,7 @@ class RemoteInstance(ProcessInstance):
 
 class NetInstance(BaseInstance):
     def __init__(self, host, port):
+        import socket
         self.s = socket.socket()
         self.s.connect((host, port))
         self.stdin = self.stdout = self.s.makefile('rw')
@@ -112,6 +114,7 @@ class NetInstance(BaseInstance):
         return marshal.loads(zlib.decompress(self.stdout.read(l)))
 
 def main():
+    import getopt
     optlist, args = getopt.getopt(sys.argv[1:], 'hn:m:')
     optdict = dict(optlist)
     if '-h' in optdict:
@@ -128,6 +131,7 @@ def main():
         for machine in optdict['-m'].split(','):
             ilist.append(RemoteInstance(machine))
 
+    import pprint
     for funcname in args:
         modname = funcname.rsplit('.', 1)[0]
         for i in ilist:
