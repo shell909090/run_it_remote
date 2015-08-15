@@ -6,7 +6,7 @@
 
 try this:
 
-    python main.py hostname rmtfunc.get_dpkg
+    python main.py -m host1,host2 'import pprint,rmtfunc; pprint.pprint(rmtfunc.get_dpkg())'
 
 it will return all your packages start with 'python' in machine 'hostname'.
 

@@ -4,7 +4,7 @@
 
 试试:
 
-    python main.py hostname rmtfunc.get_dpkg
+    python main.py -m host1,host2 'import pprint,rmtfunc; pprint.pprint(rmtfunc.get_dpkg())'
 
 屏幕上应当打印出hostname这台机器上所有以python开头的包。
 
