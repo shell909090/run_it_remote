@@ -131,13 +131,16 @@ def main():
         for machine in optdict['-m'].split(','):
             ilist.append(RemoteInstance(machine))
 
-    import pprint
-    for funcname in args:
-        modname = funcname.rsplit('.', 1)[0]
+    import re, pprint
+    re_cmd = re.compile('(\S*)\(.*\)')
+    for command in args:
+        modname = None
+        m = re_cmd.match(command)
+        if m: modname = m.group(1).rsplit('.', 1)[0]
         for i in ilist:
-            i.execute('import ' + modname)
-            r = i.eval(funcname + '()')
-            print '----------%s output: %s-----------' % (str(i), funcname)
+            if modname: i.execute('import ' + modname)
+            r = i.eval(command)
+            print '----------%s output: %s-----------' % (str(i), command)
             pprint.pprint(r)
 
     for i in ilist: i.close()

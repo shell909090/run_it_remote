@@ -74,7 +74,7 @@ def loop():
         o = read()
         if o[0] == 'exit': break
         if o[0] == 'exec': co = compile(o[1], '<exec>', 'exec')
-        elif o[0] == 'eval': co = compile(o[1], '<eval>', 'eval')
+        elif o[0] == 'eval': co = compile(o[1], '<eval>', 'single')
         write(['rslt', eval(co, g)])
 
 def main_exec():
