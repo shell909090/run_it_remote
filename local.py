@@ -5,48 +5,83 @@
 @author: shell.xu
 '''
 import os, sys, imp, zlib, struct, marshal
-import inspect
+import inspect, logging
 
-BOOTSTRAP = '''import sys, zlib, struct, marshal; exec compile(marshal.loads(zlib.decompress(sys.stdin.read(struct.unpack('>I', sys.stdin.read(4))[0]))), '<remote>', 'exec')'''
+BOOTSTRAP = '''import sys, zlib, struct, marshal; exec compile(marshal.loads(zlib.decompress(sys.stdin.read(struct.unpack('>H', sys.stdin.read(2))[0]))), '<remote>', 'exec')'''
 
 class BaseInstance(object):
 
+    def __init__(self):
+        self.g, self.fmaps = {}, {}
+
     def loop(self):
         while True:
-            r = self.read()
-            if r[0] == 'otpt':
-                sys.stdout.write(r[1])
-            elif r[0] == 'flsh':
-                sys.stdout.flush()
-            elif r[0] == 'imp':
-                self.find_module(r[1], r[2])
-            elif r[0] == 'rslt':
-                return r[1]
-            elif r[0] == 'excp':
-                raise Exception(r[1])
+            o = self.recv()
+            if o[0] == 'result':
+                return o[1]
+            if o[0] == 'apply':
+                r = eval(o[1], self.g)(*o[2:])
+            elif o[0] in ('exec', 'eval', 'single'):
+                r = eval(compile(o[1], '<%s>' % o[0], o[0]), self.g)
+            getattr(self, 'on_' + o[0])(*o[1:])
 
-    def find_module(self, name, path):
+    def on_open(self, filepath, mode):
+        f = open(filepath, mode)
+        self.fmaps[id(f)] = f
+        self.send(['fid', id(f)])
+
+    def on_std(self, which):
+        if which == 'stdout':
+            f = sys.stdout
+        elif which == 'stderr':
+            f = sys.stderr
+        elif which == 'stdin':
+            f = sys.stdin
+        self.fmaps[id(f)] = f
+        self.send(['fid', id(f)])
+
+    def on_write(self, id, d):
+        self.fmaps[id].write(d)
+
+    def on_read(self, id, size):
+        self.send(self.fmaps[id].read(size))
+
+    def on_seek(self, id, offset, whence):
+        self.fmaps[id].seek(offset, whence)
+
+    def on_flush(self, id):
+        self.fmaps[id].flush()
+
+    def on_close(self, id):
+        self.fmaps[id].close()
+        del self.fmaps[id]
+
+    def on_find_module(self, name, path):
         try:
             r = list(imp.find_module(name, path))
-            if r[2][2] in (imp.PY_SOURCE, imp.C_EXTENSION):
-                with r[0]: r[0] = r[0].read()
-            self.write(r)
-        except ImportError: self.write(None)
+            if r[0] is not None:
+                self.fmaps[id(r[0])] = r[0]
+                r[0] = id(r[0])
+            self.send(r)
+        except ImportError: self.send(None)
+
+    def on_except(self, err):
+        raise Exception(err)
 
     def eval(self, f):
-        self.write(['eval', f])
+        self.send(['eval', f])
         return self.loop()
 
     def execute(self, f):
-        self.write(['exec', f])
+        self.send(['exec', f])
         return self.loop()
 
     def single(self, f):
-        self.write(['single', f])
+        self.send(['single', f])
         return self.loop()
 
     def apply(self, f, *p):
-        self.write(['aply', self.sendfunc(f)] + list(p))
+        self.send(['apply', self.sendfunc(f)] + list(p))
         return self.loop()
 
     def sendfunc(self, f):
@@ -66,23 +101,24 @@ class ProcessInstance(BaseInstance):
         self.p = subprocess.Popen(
             cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         with open('remote.py', 'r') as fi:
-            self.write(fi.read())
+            self.send(fi.read())
+        self.loop()
 
     def close(self):
-        self.write(['exit',])
+        self.send(['exit',])
         self.p.wait()
 
-    def write(self, o):
-        # print 'out', o
+    def send(self, o):
+        logging.debug('send: %s', str(o))
         d = zlib.compress(marshal.dumps(o), 9)
-        self.p.stdin.write(struct.pack('>I', len(d)) + d)
+        self.p.stdin.write(struct.pack('>H', len(d)) + d)
         self.p.stdin.flush()
 
-    def read(self):
+    def recv(self):
         try:
-            l = struct.unpack('>I', self.p.stdout.read(4))[0]
+            l = struct.unpack('>H', self.p.stdout.read(2))[0]
             o = marshal.loads(zlib.decompress(self.p.stdout.read(l)))
-            # print 'in', o[0]
+            logging.debug('recv: %s', str(o))
             return o
         except:
             print self.p.stderr.read()
@@ -91,6 +127,7 @@ class ProcessInstance(BaseInstance):
 class LocalInstance(ProcessInstance):
 
     def __init__(self):
+        ProcessInstance.__init__(self)
         self.start(['python', '-c', BOOTSTRAP])
 
     def __repr__(self): return '<local>'
@@ -98,6 +135,7 @@ class LocalInstance(ProcessInstance):
 class SshInstance(ProcessInstance):
 
     def __init__(self, host):
+        ProcessInstance.__init__(self)
         self.host = host
         self.start(['ssh', host, 'python', '-c', '"%s"' % BOOTSTRAP])
 
@@ -106,6 +144,7 @@ class SshInstance(ProcessInstance):
 class NetInstance(BaseInstance):
 
     def __init__(self, addr):
+        BaseInstance.__init__(self)
         host, port = addr.rsplit(':', 1)
         port = int(port)
         import socket
@@ -117,16 +156,16 @@ class NetInstance(BaseInstance):
     def __repr__(self): return self.addr
 
     def close(self):
-        self.write(['exit',])
+        self.send(['exit',])
         self.stdin.close()
 
-    def write(self, o):
+    def send(self, o):
         d = zlib.compress(marshal.dumps(o), 9)
-        self.stdin.write(struct.pack('>I', len(d)) + d)
+        self.stdin.write(struct.pack('>H', len(d)) + d)
         self.stdin.flush()
 
-    def read(self):
-        l = struct.unpack('>I', self.stdout.read(4))[0]
+    def recv(self):
+        l = struct.unpack('>H', self.stdout.read(2))[0]
         return marshal.loads(zlib.decompress(self.stdout.read(l)))
 
 class RemoteFunction(object):
@@ -152,7 +191,7 @@ class RemoteFunction(object):
         for f in self.funcs:
             self.fmaps[f] = ins.sendfunc(f)
 
-def run_parallel(func, it, concurrent=20):
+def run_parallel_t(func, it, concurrent=20):
     from multiprocessing.pool import ThreadPool
     pool = ThreadPool(concurrent)
     for i in it:
@@ -168,6 +207,8 @@ def main():
         print main.__doc__
         return
 
+    # logging.basicConfig(level=logging.DEBUG)
+
     def runner(ins):
         for command in args:
             print '-----%s output: %s-----' % (str(ins), command)
@@ -176,7 +217,7 @@ def main():
 
     def runmode(inscls, l):
         if '-p' in optdict:
-            return run_parallel(lambda x: runner(inscls(x)), l.split(','))
+            return run_parallel_t(lambda x: runner(inscls(x)), l.split(','))
         for x in l.split(','):
             runner(inscls(x))
 

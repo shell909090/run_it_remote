@@ -6,6 +6,8 @@
 '''
 import os, sys, imp, zlib, struct, marshal
 
+CHUNK_SIZE = 64000
+
 def add_module(name):
     if name not in sys.modules:
         sys.modules[name] = imp.new_module(name)
@@ -13,11 +15,16 @@ def add_module(name):
 
 class Loader(object):
 
-    def __init__(self, finder, src, pathname, description):
-        self.finder, self.src = finder, src
+    def __init__(self, finder, srcfid, pathname, description):
+        self.finder, self.srcfile = finder, None
         self.pathname, self.description = pathname, description
+        if srcfid is not None:
+            self.srcfile = ChannelFile(finder.channel, srcfid)
 
     def exec_code_module(self, mod):
+        if not hasattr(self, 'src'):
+            self.src = self.srcfile.read()
+            self.srcfile.close()
         exec compile(self.src, self.pathname, 'exec') in mod.__dict__
 
 class SrcLoader(Loader):
@@ -61,9 +68,8 @@ class Finder(object):
             raise
 
     def find_remote(self, name, path):
-        # print 'find remote:', name, path
-        self.channel.write(['imp', name.split('.')[-1], path])
-        r = self.channel.read()
+        self.channel.send(['find_module', name.split('.')[-1], path])
+        r = self.channel.recv()
         if r is not None: return self.type_map[r[2][2]](self, *r)
 
     type_map = {
@@ -71,42 +77,99 @@ class Finder(object):
         imp.C_EXTENSION: ExtLoader,
         imp.PKG_DIRECTORY: PkgLoader}
 
-class StdPipe(object):
+class ChannelFile(object):
 
-    def __init__(self, channel):
-        self.channel = channel
+    def __init__(self, channel, id):
+        self.channel, self.id = channel, id
 
     def write(self, s):
-        self.channel.write(['otpt', s])
+        s = str(s)
+        while s:
+            d, s = s[:CHUNK_SIZE], s[CHUNK_SIZE:]
+            self.channel.send(['write', self.id, d])
+
+    def read(self, size=-1):
+        d = ''
+        while len(d) < size or size == -1:
+            if size == -1: l = CHUNK_SIZE
+            else: l = size - len(d)
+            if l > CHUNK_SIZE: l = CHUNK_SIZE
+            self.channel.send(['read', self.id, l])
+            r = self.channel.recv()
+            d += r
+            if len(r) == 0: return d
+
+    def seek(self, offset, whence):
+        self.channel.send(['seek', self.id, offset, whence])
 
     def flush(self):
-        self.channel.write(['flsh', s])
+        self.channel.send(['flush', self.id])
+
+    def close(self):
+        self.channel.send(['close', self.id])
 
 class BaseChannel(object):
 
+    def __init__(self): self.g = dict()
+
     def loop(self):
-        self.g = {'__name__': '__remote__'}
         while True:
-            o = self.read()
+            o = self.recv()
             if o[0] == 'exit': break
-            if o[0] == 'aply':
+            if o[0] == 'apply':
                 r = eval(o[1], self.g)(*o[2:])
             elif o[0] in ('exec', 'eval', 'single'):
                 r = eval(compile(o[1], '<%s>' % o[0], o[0]), self.g)
-            self.write(['rslt', r])
+            self.send(['result', r])
 
-    def write(self, o):
+    def send(self, o):
         d = zlib.compress(marshal.dumps(o))
-        self.stdout.write(struct.pack('>I', len(d)) + d)
+        self.stdout.write(struct.pack('>H', len(d)) + d)
         self.stdout.flush()
 
-    def read(self):
-        l = struct.unpack('>I', sys.stdin.read(4))[0]
+    def recv(self):
+        l = struct.unpack('>H', sys.stdin.read(2))[0]
         return marshal.loads(zlib.decompress(sys.stdin.read(l)))
+
+    def open(self, filepath, mode):
+        self.send(['open', filepath, mode])
+        r = self.recv()
+        if r[0] != 'fid': raise Exception(r)
+        return ChannelFile(self, r[1])
+
+    def getstd(self, which):
+        self.send(['std', which])
+        r = self.recv()
+        if r[0] != 'fid': raise Exception(r)
+        return ChannelFile(self, r[1])
+
+    def eval(self, f):
+        self.send(['eval', f])
+        return self.loop()
+
+    def execute(self, f):
+        self.send(['exec', f])
+        return self.loop()
+
+    def single(self, f):
+        self.send(['single', f])
+        return self.loop()
+
+    def apply(self, f, *p):
+        self.send(['apply', self.sendfunc(f)] + list(p))
+        return self.loop()
+
+    def sendfunc(self, f):
+        m = inspect.getmodule(f)
+        fname = f.__name__
+        if m.__name__ != '__main__':
+            fname = m.__name__ + '.' + fname
+        return fname
 
 class StdChannel(BaseChannel):
 
     def __init__(self):
+        BaseChannel.__init__(self)
         self.stdin, self.stdout = sys.stdin, os.fdopen(os.dup(1), 'w')
         os.close(1)
         os.dup2(2, 1)
@@ -114,6 +177,7 @@ class StdChannel(BaseChannel):
 class NetChannel(BaseChannel):
 
     def __init__(self, host, port):
+        BaseChannel.__init__(self)
         import socket
         self.listen = socket.socket()
         self.listen.bind((host, port))
@@ -142,7 +206,8 @@ def main():
 
     sys.modules['remote'] = __import__(__name__)
     sys.meta_path.append(Finder(channel))
-    sys.stdout = StdPipe(channel)
+    sys.stdout = channel.getstd('stdout')
+    channel.send(['result', None])
     channel.loop()
 
 if __name__ == '__main__': main()
