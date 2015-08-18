@@ -7,7 +7,7 @@
 import os, sys, imp, zlib, struct, marshal
 import inspect
 
-BOOTSTRAP = '''import sys, zlib, marshal; exec compile(zlib.decompress(marshal.load(sys.stdin)), '<remote>', 'exec')'''
+BOOTSTRAP = '''import sys, zlib, struct, marshal; l = struct.unpack('>I', sys.stdin.read(4))[0]; src = marshal.loads(zlib.decompress(sys.stdin.read(l))); exec compile(src, '<remote>', 'exec')'''
 
 class BaseInstance(object):
 
@@ -66,8 +66,7 @@ class ProcessInstance(BaseInstance):
         self.p = subprocess.Popen(
             cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         with open('remote.py', 'r') as fi:
-            marshal.dump(zlib.compress(fi.read(), 9), self.p.stdin)
-            self.p.stdin.flush()
+            self.write(fi.read())
 
     def close(self):
         self.write(['exit',])
