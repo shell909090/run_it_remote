@@ -24,7 +24,7 @@ def get_dpkg():
     return rslt
 
 def main():
-    i = local.SshInstance('do1')
+    i = local.SshInstance(sys.argv[1])
     rmt.bind(i)
     import pprint
     pprint.pprint(get_dpkg())
