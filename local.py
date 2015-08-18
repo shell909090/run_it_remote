@@ -7,7 +7,7 @@
 import os, sys, imp, zlib, struct, marshal
 import inspect
 
-BOOTSTRAP = '''import sys, zlib, struct, marshal; l = struct.unpack('>I', sys.stdin.read(4))[0]; src = marshal.loads(zlib.decompress(sys.stdin.read(l))); exec compile(src, '<remote>', 'exec')'''
+BOOTSTRAP = '''import sys, zlib, struct, marshal; exec compile(marshal.loads(zlib.decompress(sys.stdin.read(struct.unpack('>I', sys.stdin.read(4))[0]))), '<remote>', 'exec')'''
 
 class BaseInstance(object):
 
