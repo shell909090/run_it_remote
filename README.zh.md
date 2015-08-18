@@ -4,7 +4,7 @@
 
 试试:
 
-    python main.py -m host1,host2 'import pprint,rmtfunc; pprint.pprint(rmtfunc.get_dpkg())'
+    python local.py -m host1,host2 'import pprint,rmtfunc; pprint.pprint(rmtfunc.get_dpkg())'
 
 屏幕上应当打印出hostname这台机器上所有以python开头的包。
 
@@ -36,6 +36,6 @@ eval只接受一个表达式，会返回表达式的值。
 
 execute可以接受一系列语句（甚至是一个模块），但是只会返回None。
 
-run_single可以接受一系列语句，执行每一条，得到表达式的值。并打印非None的返回值。
+single可以接受一系列语句，执行每一条，得到表达式的值。并打印非None的返回值。
 
 你可以在[python doc](https://docs.python.org/2/library/functions.html#compile)找到更多信息。

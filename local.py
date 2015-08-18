@@ -48,7 +48,7 @@ class BaseInstance(object):
         self.write(['exec', self.check_f(f)])
         return self.loop()
 
-    def run_single(self, f):
+    def single(self, f):
         self.write(['single', self.check_f(f)])
         return self.loop()
 
@@ -147,7 +147,7 @@ def main():
     for command in args:
         for i in ilist:
             print '----------%s output: %s-----------' % (str(i), command)
-            i.run_single(command)
+            i.single(command)
     for i in ilist: i.close()
 
 if __name__ == '__main__': main()

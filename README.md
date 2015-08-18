@@ -6,7 +6,7 @@
 
 try this:
 
-    python main.py -m host1,host2 'import pprint,rmtfunc; pprint.pprint(rmtfunc.get_dpkg())'
+    python local.py -m host1,host2 'import pprint,rmtfunc; pprint.pprint(rmtfunc.get_dpkg())'
 
 it will return all your packages start with 'python' in machine 'hostname'.
 
@@ -38,6 +38,6 @@ eval just accept a sigle expression, and will evaluate it as the return value.
 
 execute accept a sequence of statements, but just return None.
 
-run_single accept a single interactive statement. print every thing other than None.
+single accept a single interactive statement. print every thing other than None.
 
 You can get more information from [python doc](https://docs.python.org/2/library/functions.html#compile).
