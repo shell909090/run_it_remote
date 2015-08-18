@@ -9,6 +9,7 @@ import os, sys, imp, zlib, struct, marshal
 BOOTSTRAP = '''import sys, zlib, marshal; exec compile(zlib.decompress(marshal.load(sys.stdin)), '<remote>', 'exec')'''
 
 class BaseInstance(object):
+
     def loop(self):
         while True:
             r = self.read()
@@ -48,14 +49,16 @@ class BaseInstance(object):
         return self.loop()
 
     def run_single(self, f):
-        self.write(['sngl', self.check_f(f)])
+        self.write(['single', self.check_f(f)])
         return self.loop()
 
-    def call(self, f, *p):
-        self.execute(f)
-        return self.eval('%s(%s)' % (f.__name__, str(p)[1:-1]))
+    def apply(self, f, *p):
+        if hasattr(f, '__call__'): f = f.__name__
+        self.write(['aply', f] + p)
+        return self.loop()
 
 class ProcessInstance(BaseInstance):
+
     def start(self, cmd):
         import subprocess
         self.p = subprocess.Popen(
@@ -82,12 +85,14 @@ class ProcessInstance(BaseInstance):
             raise
 
 class LocalInstance(ProcessInstance):
+
     def __init__(self):
         self.start(['python', '-c', BOOTSTRAP])
 
     def __repr__(self): return '<local>'
 
 class RemoteInstance(ProcessInstance):
+
     def __init__(self, host):
         self.host = host
         self.start(['ssh', host, 'python', '-c', '"%s"' % BOOTSTRAP])
@@ -95,6 +100,7 @@ class RemoteInstance(ProcessInstance):
     def __repr__(self): return self.host
 
 class NetInstance(BaseInstance):
+
     def __init__(self, addr):
         host, port = addr.rsplit(':', 1)
         port = int(port)
