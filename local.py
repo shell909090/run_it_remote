@@ -125,29 +125,40 @@ class NetInstance(BaseInstance):
         l = struct.unpack('>I', self.stdout.read(4))[0]
         return marshal.loads(zlib.decompress(self.stdout.read(l)))
 
+def run_parallel(func, it, concurrent=20):
+    from multiprocessing.pool import ThreadPool
+    pool = ThreadPool(concurrent)
+    for i in it:
+        pool.apply_async(func, (i,))
+    pool.close()
+    pool.join()
+
 def main():
     import getopt
-    optlist, args = getopt.getopt(sys.argv[1:], 'hn:m:')
+    optlist, args = getopt.getopt(sys.argv[1:], 'hn:m:p')
     optdict = dict(optlist)
     if '-h' in optdict:
         print main.__doc__
         return
 
-    ilist = []
+    def runner(ins):
+        for command in args:
+            print '-----%s output: %s-----' % (str(ins), command)
+            ins.single(command)
+        ins.close()
+
+    def runmode(inscls, l):
+        if '-p' in optdict:
+            return run_parallel(lambda x: runner(inscls(x)), l.split(','))
+        for x in l.split(','):
+            runner(inscls(x))
+
     if '-n' in optdict:
-        for addr in optdict['-n'].split(','):
-            ilist.append(NetInstance(addr))
+        runmode(NetInstance, optdict['-n'])
     elif '-m' in optdict:
-        for machine in optdict['-m'].split(','):
-            ilist.append(RemoteInstance(machine))
+        runmode(RemoteInstance, optdict['-m'])
     else:
         print 'neither network(-n) nor machine(-m) in parameters, quit.'
         return
-
-    for command in args:
-        for i in ilist:
-            print '----------%s output: %s-----------' % (str(i), command)
-            i.single(command)
-    for i in ilist: i.close()
 
 if __name__ == '__main__': main()
