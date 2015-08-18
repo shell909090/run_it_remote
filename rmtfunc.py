@@ -6,6 +6,7 @@
 '''
 import sys, subprocess
 import local
+# import bs4
 rmt = local.RemoteFunction()
 
 def callback(hostname):

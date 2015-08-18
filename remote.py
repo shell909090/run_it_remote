@@ -38,6 +38,9 @@ class SrcLoader(Loader):
 class ExtLoader(Loader):
 
     def load_module(self, fullname):
+        if not hasattr(self, 'src'):
+            self.src = self.srcfile.read()
+            self.srcfile.close()
         import tempfile
         with tempfile.NamedTemporaryFile('wb') as tmp:
             tmp.write(self.src)
@@ -89,15 +92,13 @@ class ChannelFile(object):
             self.channel.send(['write', self.id, d])
 
     def read(self, size=-1):
+        self.channel.send(['read', self.id, size])
         d = ''
         while len(d) < size or size == -1:
-            if size == -1: l = CHUNK_SIZE
-            else: l = size - len(d)
-            if l > CHUNK_SIZE: l = CHUNK_SIZE
-            self.channel.send(['read', self.id, l])
             r = self.channel.recv()
+            if len(r) == 0: break
             d += r
-            if len(r) == 0: return d
+        return d
 
     def seek(self, offset, whence):
         self.channel.send(['seek', self.id, offset, whence])

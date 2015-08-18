@@ -8,6 +8,7 @@ import os, sys, imp, zlib, struct, marshal
 import inspect, logging
 
 BOOTSTRAP = '''import sys, zlib, struct, marshal; exec compile(marshal.loads(zlib.decompress(sys.stdin.read(struct.unpack('>H', sys.stdin.read(2))[0]))), '<remote>', 'exec')'''
+CHUNK_SIZE = 64000
 
 class BaseInstance(object):
 
@@ -42,7 +43,13 @@ class BaseInstance(object):
         self.fmaps[id].write(d)
 
     def on_read(self, id, size):
-        self.send(self.fmaps[id].read(size))
+        while size > 0 or size == -1:
+            l = size
+            if l > CHUNK_SIZE or l < 0: l = CHUNK_SIZE
+            d = self.fmaps[id].read(l)
+            self.send(d)
+            if len(d) == 0: return
+            if size != -1: size -= len(d)
 
     def on_seek(self, id, offset, whence):
         self.fmaps[id].seek(offset, whence)
@@ -107,7 +114,9 @@ class ProcessInstance(BaseInstance):
         self.p.wait()
 
     def send(self, o):
-        logging.debug('send: %s', str(o))
+        if isinstance(o, list):
+            logging.debug('send: %s', str(o))
+        else: logging.debug('send: data')
         d = zlib.compress(marshal.dumps(o), 9)
         self.p.stdin.write(struct.pack('>H', len(d)) + d)
         self.p.stdin.flush()
@@ -116,7 +125,8 @@ class ProcessInstance(BaseInstance):
         try:
             l = struct.unpack('>H', self.p.stdout.read(2))[0]
             o = marshal.loads(zlib.decompress(self.p.stdout.read(l)))
-            logging.debug('recv: %s', str(o))
+            if isinstance(o, list): logging.debug('recv: %s', str(o))
+            else: logging.debug('recv: data')
             return o
         except:
             print self.p.stderr.read()
@@ -205,7 +215,7 @@ def main():
         print main.__doc__
         return
 
-    logging.basicConfig(level=logging.DEBUG)
+    # logging.basicConfig(level=logging.DEBUG)
 
     def runner(ins):
         for command in args:
