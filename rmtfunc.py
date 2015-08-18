@@ -4,7 +4,7 @@
 @date: 2015-08-14
 @author: shell.xu
 '''
-import subprocess
+import sys, subprocess
 import local
 rmt = local.RemoteFunction()
 
