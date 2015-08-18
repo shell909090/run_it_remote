@@ -6,7 +6,7 @@
 '''
 import os, sys, imp, zlib, struct, marshal
 
-BOOTSTRAP = '''import sys, zlib, marshal; exec compile(zlib.decompress(marshal.load(sys.stdin)), '<core>', 'exec')'''
+BOOTSTRAP = '''import sys, zlib, marshal; exec compile(zlib.decompress(marshal.load(sys.stdin)), '<remote>', 'exec')'''
 
 class BaseInstance(object):
     def loop(self):
@@ -60,7 +60,7 @@ class ProcessInstance(BaseInstance):
         import subprocess
         self.p = subprocess.Popen(
             cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        with open('core.py', 'r') as fi:
+        with open('remote.py', 'r') as fi:
             marshal.dump(zlib.compress(fi.read(), 9), self.p.stdin)
             self.p.stdin.flush()
 
