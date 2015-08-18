@@ -17,13 +17,14 @@ class BaseInstance(object):
     def loop(self):
         while True:
             o = self.recv()
-            if o[0] == 'result':
-                return o[1]
+            if o[0] == 'result': return o[1]
             if o[0] == 'apply':
                 r = eval(o[1], self.g)(*o[2:])
+                self.send(['result', r])
             elif o[0] in ('exec', 'eval', 'single'):
                 r = eval(compile(o[1], '<%s>' % o[0], o[0]), self.g)
-            getattr(self, 'on_' + o[0])(*o[1:])
+                self.send(['result', r])
+            else: getattr(self, 'on_' + o[0])(*o[1:])
 
     def on_open(self, filepath, mode):
         f = open(filepath, mode)
@@ -31,12 +32,9 @@ class BaseInstance(object):
         self.send(['fid', id(f)])
 
     def on_std(self, which):
-        if which == 'stdout':
-            f = sys.stdout
-        elif which == 'stderr':
-            f = sys.stderr
-        elif which == 'stdin':
-            f = sys.stdin
+        if which == 'stdout': f = sys.stdout
+        elif which == 'stderr': f = sys.stderr
+        elif which == 'stdin': f = sys.stdin
         self.fmaps[id(f)] = f
         self.send(['fid', id(f)])
 
@@ -182,7 +180,7 @@ class RemoteFunction(object):
         def inner(*p):
             if f not in self.fmaps:
                 raise Exception('not bind yet.')
-            self.ins.write(['aply', self.fmaps[f]] + list(p))
+            self.ins.send(['apply', self.fmaps[f]] + list(p))
             return self.ins.loop()
         return inner
 
@@ -207,7 +205,7 @@ def main():
         print main.__doc__
         return
 
-    # logging.basicConfig(level=logging.DEBUG)
+    logging.basicConfig(level=logging.DEBUG)
 
     def runner(ins):
         for command in args:

@@ -8,6 +8,15 @@ import sys, subprocess
 import local
 rmt = local.RemoteFunction()
 
+def callback(hostname):
+    print 'hostname: ' + hostname
+
+@rmt.func
+def get_hostname_cb():
+    import remote
+    with open('/etc/hostname') as fi:
+        remote.channel.apply(callback, fi.read().strip())
+
 def get_hostname():
     with open('/etc/hostname') as fi:
         return fi.read().strip()
@@ -26,7 +35,8 @@ def get_dpkg():
 def main():
     i = local.SshInstance(sys.argv[1])
     rmt.bind(i)
-    import pprint
-    pprint.pprint(get_dpkg())
+    # import pprint
+    # pprint.pprint(get_dpkg())
+    get_hostname_cb()
 
 if __name__ == '__main__': main()

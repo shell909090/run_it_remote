@@ -116,6 +116,7 @@ class BaseChannel(object):
         while True:
             o = self.recv()
             if o[0] == 'exit': break
+            if o[0] == 'result': return o[1]
             if o[0] == 'apply':
                 r = eval(o[1], self.g)(*o[2:])
             elif o[0] in ('exec', 'eval', 'single'):
@@ -160,9 +161,14 @@ class BaseChannel(object):
         return self.loop()
 
     def sendfunc(self, f):
+        import inspect
         m = inspect.getmodule(f)
         fname = f.__name__
-        if m.__name__ != '__main__':
+        if m is None:
+            self.execute('import __main__')
+            fname = '__main__.' + fname
+        else:
+            self.execute('import ' + m.__name__)
             fname = m.__name__ + '.' + fname
         return fname
 
