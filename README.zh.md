@@ -24,7 +24,7 @@
 
 main.py里有例子:
 
-    h = RemoteHost(hostname)
+    h = SshInstance(hostname)
 	h.execute('xxx')
 	result = h.eval('xxx')
 	h.run_single('xxx; xxx')

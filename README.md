@@ -26,7 +26,7 @@ Attention: hostname should be a debian/ubuntu. cause get_dpkg, as it named, are 
 
 As main.py:
 
-    h = RemoteHost(hostname)
+    h = SshInstance(hostname)
 	h.execute('xxx')
 	result = h.eval('xxx')
 	h.run_single('xxx; xxx')

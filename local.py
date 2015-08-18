@@ -5,6 +5,7 @@
 @author: shell.xu
 '''
 import os, sys, imp, zlib, struct, marshal
+import inspect
 
 BOOTSTRAP = '''import sys, zlib, marshal; exec compile(zlib.decompress(marshal.load(sys.stdin)), '<remote>', 'exec')'''
 
@@ -32,30 +33,31 @@ class BaseInstance(object):
             self.write(r)
         except ImportError: self.write(None)
 
-    @staticmethod
-    def check_f(f):
-        import inspect
-        if hasattr(f, '__call__'):
-            f = inspect.getsource(f)
-        assert isinstance(f, basestring)
-        return f
-
     def eval(self, f):
-        self.write(['eval', self.check_f(f)])
+        self.write(['eval', f])
         return self.loop()
 
     def execute(self, f):
-        self.write(['exec', self.check_f(f)])
+        self.write(['exec', f])
         return self.loop()
 
     def single(self, f):
-        self.write(['single', self.check_f(f)])
+        self.write(['single', f])
         return self.loop()
 
     def apply(self, f, *p):
-        if hasattr(f, '__call__'): f = f.__name__
-        self.write(['aply', f] + p)
+        self.write(['aply', self.sendfunc(f)] + list(p))
         return self.loop()
+
+    def sendfunc(self, f):
+        m = inspect.getmodule(f)
+        fname = f.__name__
+        if m.__name__ == '__main__':
+            self.execute(inspect.getsource(m))
+        else:
+            self.execute('import ' + m.__name__)
+            fname = m.__name__ + '.' + fname
+        return fname
 
 class ProcessInstance(BaseInstance):
 
@@ -72,6 +74,7 @@ class ProcessInstance(BaseInstance):
         self.p.wait()
 
     def write(self, o):
+        # print 'out', o
         d = zlib.compress(marshal.dumps(o), 9)
         self.p.stdin.write(struct.pack('>I', len(d)) + d)
         self.p.stdin.flush()
@@ -79,7 +82,9 @@ class ProcessInstance(BaseInstance):
     def read(self):
         try:
             l = struct.unpack('>I', self.p.stdout.read(4))[0]
-            return marshal.loads(zlib.decompress(self.p.stdout.read(l)))
+            o = marshal.loads(zlib.decompress(self.p.stdout.read(l)))
+            # print 'in', o[0]
+            return o
         except:
             print self.p.stderr.read()
             raise
@@ -91,7 +96,7 @@ class LocalInstance(ProcessInstance):
 
     def __repr__(self): return '<local>'
 
-class RemoteInstance(ProcessInstance):
+class SshInstance(ProcessInstance):
 
     def __init__(self, host):
         self.host = host
@@ -125,6 +130,29 @@ class NetInstance(BaseInstance):
         l = struct.unpack('>I', self.stdout.read(4))[0]
         return marshal.loads(zlib.decompress(self.stdout.read(l)))
 
+class RemoteFunction(object):
+
+    def __init__(self):
+        self.funcs = set()
+        self.fmaps = dict()
+
+    def func(self, f):
+        import remote
+        if hasattr(remote, 'channel'): return f
+
+        self.funcs.add(f)
+        def inner(*p):
+            if f not in self.fmaps:
+                raise Exception('not bind yet.')
+            self.ins.write(['aply', self.fmaps[f]] + list(p))
+            return self.ins.loop()
+        return inner
+
+    def bind(self, ins):
+        self.ins = ins
+        for f in self.funcs:
+            self.fmaps[f] = ins.sendfunc(f)
+
 def run_parallel(func, it, concurrent=20):
     from multiprocessing.pool import ThreadPool
     pool = ThreadPool(concurrent)
@@ -156,7 +184,7 @@ def main():
     if '-n' in optdict:
         runmode(NetInstance, optdict['-n'])
     elif '-m' in optdict:
-        runmode(RemoteInstance, optdict['-m'])
+        runmode(SshInstance, optdict['-m'])
     else:
         print 'neither network(-n) nor machine(-m) in parameters, quit.'
         return

@@ -11,13 +11,6 @@ def add_module(name):
         sys.modules[name] = imp.new_module(name)
     return sys.modules[name]
 
-# m_rr = add_module('runremote')
-# def apply(f, *p):
-#     if hasattr(f, '__call__'): f = f.__name__
-#     channel.write(['aply', f] + p)
-#     return loop()
-# m_rr.apply = apply
-
 class Loader(object):
 
     def __init__(self, finder, src, pathname, description):
@@ -92,7 +85,7 @@ class StdPipe(object):
 class BaseChannel(object):
 
     def loop(self):
-        self.g = dict()
+        self.g = {'__name__': '__remote__'}
         while True:
             o = self.read()
             if o[0] == 'exit': break
@@ -140,12 +133,14 @@ def main():
         print main.__doc__
         return
 
+    global channel
     if '-n' in optdict:
         host, port = optdict['-n'].rsplit(':', 1)
         port = int(port)
         channel = NetChannel(host, port)
     else: channel = StdChannel()
 
+    sys.modules['remote'] = __import__(__name__)
     sys.meta_path.append(Finder(channel))
     sys.stdout = StdPipe(channel)
     channel.loop()
