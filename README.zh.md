@@ -10,6 +10,20 @@
 
 注意：hostname这台机器应当是一台debian/ubuntu。因为get_dpkg这个函数，如同名字暗示的一样，是通过读取dpkg -l来工作的。
 
+# 更多例子
+
+试试:
+
+    python run.py -e -i sudo -p -m host1,host2 'hwinfo.all_info()'
+
+这应当会打出远程机器的配置。
+
+* -e是使用eval模式工作的意思，结果会被收集回来，使用json格式打印出来。
+* -i是instance模式选择，这里使用sudo在远程执行。
+* -p是并行工作。
+* -m是机器列表，也可以用-f或-c指定。
+* hwinfo.all_info是附带的收集机器信息的程序。
+
 # 工作原理
 
 1. 启动一个python实例，用-c执行启动代码。启动代码会读取stdin中的输入，unmarshal，编译，并执行。

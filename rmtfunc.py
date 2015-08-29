@@ -3,6 +3,8 @@
 '''
 @date: 2015-08-14
 @author: shell.xu
+@copyright: 2015, Shell.Xu <shell909090@gmail.com>
+@license: BSD-3-clause
 '''
 import sys, subprocess
 import local
@@ -34,10 +36,12 @@ def get_dpkg():
     return rslt
 
 def main():
-    i = local.SshInstance(sys.argv[1])
-    rmt.bind(i)
-    # import pprint
-    # pprint.pprint(get_dpkg())
-    get_hostname_cb()
+    import logging
+    logging.basicConfig(level=logging.DEBUG)
+    with local.SshInstance(sys.argv[1]) as i:
+        rmt.bind(i)
+        # import pprint
+        # pprint.pprint(get_dpkg())
+        get_hostname_cb()
 
 if __name__ == '__main__': main()

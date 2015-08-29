@@ -6,11 +6,25 @@
 
 try this:
 
-    python local.py -m host1,host2 'import pprint,rmtfunc; pprint.pprint(rmtfunc.get_dpkg())'
+    python run.py -m host1,host2 'import pprint,rmtfunc; pprint.pprint(rmtfunc.get_dpkg())'
 
 it will return all your packages start with 'python' in machine 'hostname'.
 
 Attention: hostname should be a debian/ubuntu. cause get_dpkg, as it named, are gather information from dpkg -l.
+
+# more example
+
+try this:
+
+    python run.py -e -i sudo -p -m host1,host2 'hwinfo.all_info()'
+
+it will print all infomation about remote machine.
+
+* -e for eval mode. result will get back and dump out as json.
+* -i for instance select. we run remote by sudo.
+* -p for parallel.
+* -m for machine list, -f(file) or -c(stdin) also can be use.
+* hwinfo.all_info is a program in hwinfo.py. it will collect all infomation about remote machine.
 
 # How it works
 

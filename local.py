@@ -3,6 +3,8 @@
 '''
 @date: 2015-08-14
 @author: shell.xu
+@copyright: 2015, Shell.Xu <shell909090@gmail.com>
+@license: BSD-3-clause
 '''
 import os, sys, imp, zlib, struct, marshal
 import inspect, logging
@@ -14,6 +16,9 @@ class BaseInstance(object):
 
     def __init__(self):
         self.g, self.fmaps = {}, {}
+
+    def __enter__(self): return self
+    def __exit__(self, exc_type, exc_value, traceback): self.close()
 
     def loop(self):
         while True:
@@ -30,14 +35,14 @@ class BaseInstance(object):
     def on_open(self, filepath, mode):
         f = open(filepath, mode)
         self.fmaps[id(f)] = f
-        self.send(['fid', id(f)])
+        self.send(id(f))
 
     def on_std(self, which):
         if which == 'stdout': f = sys.stdout
         elif which == 'stderr': f = sys.stderr
         elif which == 'stdin': f = sys.stdin
         self.fmaps[id(f)] = f
-        self.send(['fid', id(f)])
+        self.send(id(f))
 
     def on_write(self, id, d):
         self.fmaps[id].write(d)
@@ -58,7 +63,9 @@ class BaseInstance(object):
         self.fmaps[id].flush()
 
     def on_close(self, id):
-        self.fmaps[id].close()
+        f = self.fmaps[id]
+        if f not in (sys.stdin, sys.stdout, sys.stderr):
+            f.close()
         del self.fmaps[id]
 
     def on_find_module(self, name, path):
@@ -149,6 +156,20 @@ class SshInstance(ProcessInstance):
 
     def __repr__(self): return self.host
 
+class SudoSshInstance(ProcessInstance):
+
+    def __init__(self, host, user=None):
+        ProcessInstance.__init__(self)
+        self.host, self.user = host, user
+        if user:
+            self.start(['ssh', host, 'sudo', '-u', user,
+                        'python', '-c', '"%s"' % BOOTSTRAP])
+        else:
+            self.start(['ssh', host, 'sudo',
+                        'python', '-c', '"%s"' % BOOTSTRAP])
+
+    def __repr__(self): return self.host
+
 class NetInstance(BaseInstance):
 
     def __init__(self, addr):
@@ -198,43 +219,3 @@ class RemoteFunction(object):
         self.ins = ins
         for f in self.funcs:
             self.fmaps[f] = ins.sendfunc(f)
-
-def run_parallel_t(func, it, concurrent=20):
-    from multiprocessing.pool import ThreadPool
-    pool = ThreadPool(concurrent)
-    for i in it:
-        pool.apply_async(func, (i,))
-    pool.close()
-    pool.join()
-
-def main():
-    import getopt
-    optlist, args = getopt.getopt(sys.argv[1:], 'hn:m:p')
-    optdict = dict(optlist)
-    if '-h' in optdict:
-        print main.__doc__
-        return
-
-    # logging.basicConfig(level=logging.DEBUG)
-
-    def runner(ins):
-        for command in args:
-            print '-----%s output: %s-----' % (str(ins), command)
-            ins.single(command)
-        ins.close()
-
-    def runmode(inscls, l):
-        if '-p' in optdict:
-            return run_parallel_t(lambda x: runner(inscls(x)), l.split(','))
-        for x in l.split(','):
-            runner(inscls(x))
-
-    if '-n' in optdict:
-        runmode(NetInstance, optdict['-n'])
-    elif '-m' in optdict:
-        runmode(SshInstance, optdict['-m'])
-    else:
-        print 'neither network(-n) nor machine(-m) in parameters, quit.'
-        return
-
-if __name__ == '__main__': main()

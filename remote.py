@@ -3,6 +3,8 @@
 '''
 @date: 2015-08-14
 @author: shell.xu
+@copyright: 2015, Shell.Xu <shell909090@gmail.com>
+@license: BSD-3-clause
 '''
 import os, sys, imp, zlib, struct, marshal
 
@@ -16,15 +18,13 @@ def add_module(name):
 class Loader(object):
 
     def __init__(self, finder, srcfid, pathname, description):
-        self.finder, self.srcfile = finder, None
+        self.finder, self.src = finder, None
         self.pathname, self.description = pathname, description
         if srcfid is not None:
-            self.srcfile = ChannelFile(finder.channel, srcfid)
+            with ChannelFile(finder.channel, srcfid) as srcfile:
+                self.src = srcfile.read()
 
     def exec_code_module(self, mod):
-        if not hasattr(self, 'src'):
-            self.src = self.srcfile.read()
-            self.srcfile.close()
         exec compile(self.src, self.pathname, 'exec') in mod.__dict__
 
 class SrcLoader(Loader):
@@ -38,9 +38,6 @@ class SrcLoader(Loader):
 class ExtLoader(Loader):
 
     def load_module(self, fullname):
-        if not hasattr(self, 'src'):
-            self.src = self.srcfile.read()
-            self.srcfile.close()
         import tempfile
         with tempfile.NamedTemporaryFile('wb') as tmp:
             tmp.write(self.src)
@@ -84,6 +81,9 @@ class ChannelFile(object):
 
     def __init__(self, channel, id):
         self.channel, self.id = channel, id
+
+    def __enter__(self): return self
+    def __exit__(self, exc_type, exc_value, traceback): self.close()
 
     def write(self, s):
         s = str(s)
@@ -136,14 +136,12 @@ class BaseChannel(object):
     def open(self, filepath, mode):
         self.send(['open', filepath, mode])
         r = self.recv()
-        if r[0] != 'fid': raise Exception(r)
-        return ChannelFile(self, r[1])
+        return ChannelFile(self, r)
 
     def getstd(self, which):
         self.send(['std', which])
         r = self.recv()
-        if r[0] != 'fid': raise Exception(r)
-        return ChannelFile(self, r[1])
+        return ChannelFile(self, r)
 
     def eval(self, f):
         self.send(['eval', f])
