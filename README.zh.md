@@ -4,7 +4,7 @@
 
 试试:
 
-    python local.py -m host1,host2 'import pprint,rmtfunc; pprint.pprint(rmtfunc.get_dpkg())'
+    python -m remote -m host1,host2 'import pprint,rmtfunc; pprint.pprint(rmtfunc.get_dpkg())'
 
 屏幕上应当打印出hostname这台机器上所有以python开头的包。
 
@@ -14,7 +14,7 @@
 
 试试:
 
-    python run.py -e -i sudo -p -m host1,host2 'hwinfo.all_info()'
+    python -m remote -e -i sudo -p -m host1,host2 'hwinfo.all_info()'
 
 这应当会打出远程机器的配置。
 

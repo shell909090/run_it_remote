@@ -35,6 +35,15 @@ class SrcLoader(Loader):
         self.exec_code_module(m)
         return m
 
+class PycLoader(Loader):
+
+    def load_module(self, fullname):
+        import tempfile
+        with tempfile.NamedTemporaryFile('wb') as tmp:
+            tmp.write(self.src)
+            tmp.flush()
+            return imp.load_compiled(fullname, tmp.name)
+
 class ExtLoader(Loader):
 
     def load_module(self, fullname):
@@ -70,12 +79,17 @@ class Finder(object):
     def find_remote(self, name, path):
         self.channel.send(['find_module', name.split('.')[-1], path])
         r = self.channel.recv()
-        if r is not None: return self.type_map[r[2][2]](self, *r)
+        if r is None:
+            return
+        if r[2][2] not in self.type_map:
+            raise Exception('unknown module type')
+        return self.type_map[r[2][2]](self, *r)
 
     type_map = {
         imp.PY_SOURCE: SrcLoader,
+        imp.PY_COMPILED: PycLoader,
         imp.C_EXTENSION: ExtLoader,
-        imp.PKG_DIRECTORY: PkgLoader}
+        imp.PKG_DIRECTORY: PkgLoader,}
 
 class ChannelFile(object):
 
@@ -126,11 +140,11 @@ class BaseChannel(object):
 
     def send(self, o):
         d = zlib.compress(marshal.dumps(o))
-        self.stdout.write(struct.pack('>H', len(d)) + d)
+        self.stdout.write(struct.pack('>I', len(d)) + d)
         self.stdout.flush()
 
     def recv(self):
-        l = struct.unpack('>H', sys.stdin.read(2))[0]
+        l = struct.unpack('>I', sys.stdin.read(4))[0]
         return marshal.loads(zlib.decompress(sys.stdin.read(l)))
 
     def open(self, filepath, mode):

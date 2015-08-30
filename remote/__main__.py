@@ -9,6 +9,7 @@
 import os, sys
 import json
 import getopt
+import logging
 import local
 
 def parallel_map_t(func, it, concurrent=20):
@@ -99,7 +100,7 @@ def main():
         return
 
     if '-l' in optdict:
-        logging.basicConfig(level=optdict['-l'])
+        logging.basicConfig(level=optdict['-l'].upper())
         
     prepare_instance()
     hostlist = prepare_hostlist()

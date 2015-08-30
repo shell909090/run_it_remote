@@ -6,10 +6,17 @@
 @copyright: 2015, Shell.Xu <shell909090@gmail.com>
 @license: BSD-3-clause
 '''
-import os, sys, imp, zlib, struct, marshal
-import inspect, logging
+import os
+import sys
+import imp
+import zlib
+import struct
+import marshal
+import inspect
+import logging
+from os import path
 
-BOOTSTRAP = '''import sys, zlib, struct, marshal; exec compile(marshal.loads(zlib.decompress(sys.stdin.read(struct.unpack('>H', sys.stdin.read(2))[0]))), '<remote>', 'exec')'''
+BOOTSTRAP = '''import sys, zlib, struct, marshal; exec compile(marshal.loads(zlib.decompress(sys.stdin.read(struct.unpack('>I', sys.stdin.read(4))[0]))), '<remote>', 'exec')'''
 CHUNK_SIZE = 64000
 
 class BaseInstance(object):
@@ -112,7 +119,7 @@ class ProcessInstance(BaseInstance):
         import subprocess
         self.p = subprocess.Popen(
             cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        basedir = path.basename(__file__)
+        basedir = path.dirname(__file__)
         with open(path.join(basedir, 'remote.py'), 'r') as fi:
             self.send(fi.read())
         self.loop()
@@ -126,12 +133,12 @@ class ProcessInstance(BaseInstance):
             logging.debug('send: %s', str(o))
         else: logging.debug('send: data')
         d = zlib.compress(marshal.dumps(o), 9)
-        self.p.stdin.write(struct.pack('>H', len(d)) + d)
+        self.p.stdin.write(struct.pack('>I', len(d)) + d)
         self.p.stdin.flush()
 
     def recv(self):
         try:
-            l = struct.unpack('>H', self.p.stdout.read(2))[0]
+            l = struct.unpack('>I', self.p.stdout.read(4))[0]
             o = marshal.loads(zlib.decompress(self.p.stdout.read(l)))
             if isinstance(o, list): logging.debug('recv: %s', str(o))
             else: logging.debug('recv: data')
@@ -191,11 +198,11 @@ class NetInstance(BaseInstance):
 
     def send(self, o):
         d = zlib.compress(marshal.dumps(o), 9)
-        self.stdin.write(struct.pack('>H', len(d)) + d)
+        self.stdin.write(struct.pack('>I', len(d)) + d)
         self.stdin.flush()
 
     def recv(self):
-        l = struct.unpack('>H', self.stdout.read(2))[0]
+        l = struct.unpack('>I', self.stdout.read(2))[0]
         return marshal.loads(zlib.decompress(self.stdout.read(l)))
 
 class RemoteFunction(object):

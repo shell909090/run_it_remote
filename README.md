@@ -6,7 +6,7 @@
 
 try this:
 
-    python run.py -m host1,host2 'import pprint,rmtfunc; pprint.pprint(rmtfunc.get_dpkg())'
+    python -m remote -m host1,host2 'import pprint,rmtfunc; pprint.pprint(rmtfunc.get_dpkg())'
 
 it will return all your packages start with 'python' in machine 'hostname'.
 
@@ -16,7 +16,7 @@ Attention: hostname should be a debian/ubuntu. cause get_dpkg, as it named, are 
 
 try this:
 
-    python run.py -e -i sudo -p -m host1,host2 'hwinfo.all_info()'
+    python -m remote -e -i sudo -p -m host1,host2 'hwinfo.all_info()'
 
 it will print all infomation about remote machine.
 
