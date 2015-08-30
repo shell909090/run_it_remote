@@ -112,7 +112,8 @@ class ProcessInstance(BaseInstance):
         import subprocess
         self.p = subprocess.Popen(
             cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        with open('remote.py', 'r') as fi:
+        basedir = path.basename(__file__)
+        with open(path.join(basedir, 'remote.py'), 'r') as fi:
             self.send(fi.read())
         self.loop()
 

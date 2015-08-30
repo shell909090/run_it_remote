@@ -2,7 +2,9 @@
 # -*- coding: utf-8 -*-
 '''
 @date: 2015-08-30
-@author: shell.xu
+@author: Shell.Xu
+@copyright: 2015, Shell.Xu <shell909090@gmail.com>
+@license: BSD-3-clause
 '''
 import os, sys
 import json
@@ -42,7 +44,7 @@ def prepare_hostlist():
     elif '-f' in optdict:
         fi = open(optdict['-f'])
         return get_source(fi)
-    elif '-m':
+    elif '-m' in optdict:
         return optdict['-m'].split(',')
     else:
         print 'can\'t find host list.'
