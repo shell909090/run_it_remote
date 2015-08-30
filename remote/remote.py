@@ -8,7 +8,7 @@
 '''
 import os, sys, imp, zlib, struct, marshal
 
-CHUNK_SIZE = 64000
+CHUNK_SIZE = 2147483647
 
 def add_module(name):
     if name not in sys.modules:

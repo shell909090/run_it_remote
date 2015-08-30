@@ -17,7 +17,7 @@ import logging
 from os import path
 
 BOOTSTRAP = '''import sys, zlib, struct, marshal; exec compile(marshal.loads(zlib.decompress(sys.stdin.read(struct.unpack('>I', sys.stdin.read(4))[0]))), '<remote>', 'exec')'''
-CHUNK_SIZE = 64000
+CHUNK_SIZE = 2147483647
 
 class BaseInstance(object):
 
