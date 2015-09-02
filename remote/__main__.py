@@ -10,13 +10,19 @@ import os, sys
 import json
 import getopt
 import logging
+import traceback
 import local
 
 def parallel_map_t(func, it, concurrent=20):
     from multiprocessing.pool import ThreadPool
     pool = ThreadPool(concurrent)
+    def wrapper(i):
+        try:
+            return func(i)
+        except Exception as err:
+            print traceback.format_exc()
     for i in it:
-        pool.apply_async(func, (i,))
+        pool.apply_async(wrapper, (i,))
     pool.close()
     pool.join()
 

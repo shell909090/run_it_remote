@@ -10,7 +10,9 @@ import os
 import pwd
 import grp
 import stat
+import fnmatch
 import hashlib
+import logging
 import collections
 from os import path
 
@@ -40,9 +42,11 @@ def gen_fileinfo(filepath):
     return [path.basename(filepath), st.st_size, st.st_mode,
             get_username(st.st_uid), get_groupname(st.st_gid)]
 
-def listdir(dirname):
+def listdir(dirname, partten=None):
     filist = []
     for filename in os.listdir(dirname):
+        if partten and not fnmatch.fnmatch(filename, partten):
+            continue
         fi = gen_fileinfo(path.join(dirname, filename))
         if stat.S_IFMT(fi[2]) in (stat.S_IFREG, stat.S_IFDIR):
             filist.append(fi)
@@ -90,8 +94,8 @@ def gen_file_desc(filepath, username=None, groupname=None, filemode=None):
     return fstat
 
 # TODO: record lnk in meta file
-def gen_dir_desc(dirname):
-    filist = listdir(dirname)
+def gen_dir_desc(dirname, partten=None):
+    filist = listdir(dirname, partten)
     username, groupname, filemode, dirmode = stat_dir(filist)
     files, dirs = {}, {}
     for fi in filist:
@@ -113,9 +117,9 @@ def gen_dir_desc(dirname):
         'dirlist': dirs,
         'filelist': files}
 
-def gen_desc(filepath):
+def gen_desc(filepath, partten=None):
     st = os.stat(filepath)
     if stat.S_ISREG(st.st_mode):
         return gen_file_desc(filepath)
     elif stat.S_ISDIR(st.st_mode):
-        return gen_dir_desc(filepath)
+        return gen_dir_desc(filepath, partten)

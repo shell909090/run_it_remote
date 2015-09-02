@@ -8,6 +8,7 @@
 '''
 import os
 import stat
+import fnmatch
 import logging
 from os import path
 import yaml
@@ -53,9 +54,9 @@ def write_down_meta(filepath, desc):
     with open(filepath, 'wb') as fo:
         fo.write(yaml.dump(newdesc))
 
-def sync_back(ins, remote, local, recurse=True):
+def sync_back(ins, remote, local, recurse=True, partten=None):
     logging.warning('sync %s in %s.' % (remote, str(ins)))
-    desc = ins.apply(api.gen_desc, remote)
+    desc = ins.apply(api.gen_desc, remote, partten)
 
     # this is a file.
     if 'common' not in desc:
@@ -68,10 +69,14 @@ def sync_back(ins, remote, local, recurse=True):
         os.makedirs(local)
     # sync all files back
     for file, d in desc['filelist'].iteritems():
+        if partten and not fnmatch.fnmatch(file, partten):
+            continue
         sync_file_back(ins, path.join(remote, file), path.join(local, file), d)
     # write down meta file
     write_down_meta(path.join(local, '.meta'), desc)
     # if recurse, sync dir recursively.
     if not recurse: return
     for dir, d in desc['dirlist'].iteritems():
-        sync_back(ins, path.join(remote, dir), path.join(local, dir), recurse)
+        if partten and not fnmatch.fnmatch(file, partten):
+            continue
+        sync_back(ins, path.join(remote, dir), path.join(local, dir), recurse, None)
