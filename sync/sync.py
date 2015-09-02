@@ -54,7 +54,7 @@ def write_down_meta(filepath, desc):
         fo.write(yaml.dump(newdesc))
 
 def sync_back(ins, remote, local, recurse=True):
-    logging.info('sync %s in %s.' % (remote, str(ins)))
+    logging.warning('sync %s in %s.' % (remote, str(ins)))
     desc = ins.apply(api.gen_desc, remote)
 
     # this is a file.

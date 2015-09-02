@@ -36,7 +36,7 @@ def get_groupname(gid):
     return grp.getgrgid(gid).gr_name
 
 def gen_fileinfo(filepath):
-    st = os.stat(filepath)
+    st = os.lstat(filepath)
     return [path.basename(filepath), st.st_size, st.st_mode,
             get_username(st.st_uid), get_groupname(st.st_gid)]
 

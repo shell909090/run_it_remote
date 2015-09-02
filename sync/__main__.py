@@ -68,8 +68,8 @@ def main():
             if not desc['synclist']: continue
             desces.append(desc)
 
-    # remote.__main__.parallel_map_t(sync_desc, desces)
-    for desc in desces:
-        sync_desc(desc)
+    remote.__main__.parallel_map_t(sync_desc, desces)
+    # for desc in desces:
+    #     sync_desc(desc)
 
 if __name__ == '__main__': main()
