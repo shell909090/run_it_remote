@@ -100,19 +100,21 @@ class ChannelFile(object):
     def __exit__(self, exc_type, exc_value, traceback): self.close()
 
     def write(self, s):
-        s = str(s)
-        while s:
-            d, s = s[:CHUNK_SIZE], s[CHUNK_SIZE:]
-            self.channel.send(['write', self.id, d])
+        # s = str(s)
+        # while s:
+        #     d, s = s[:CHUNK_SIZE], s[CHUNK_SIZE:]
+        #     self.channel.send(['write', self.id, d])
+        self.channel.send(['write', self.id, s])
 
     def read(self, size=-1):
         self.channel.send(['read', self.id, size])
-        d = ''
-        while len(d) < size or size == -1:
-            r = self.channel.recv()
-            if len(r) == 0: break
-            d += r
-        return d
+        return self.channel.recv()
+        # d = ''
+        # while len(d) < size or size == -1:
+        #     r = self.channel.recv()
+        #     if len(r) == 0: break
+        #     d += r
+        # return d
 
     def seek(self, offset, whence):
         self.channel.send(['seek', self.id, offset, whence])

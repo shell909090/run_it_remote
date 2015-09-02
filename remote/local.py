@@ -55,13 +55,16 @@ class BaseInstance(object):
         self.fmaps[id].write(d)
 
     def on_read(self, id, size):
-        while size > 0 or size == -1:
-            l = size
-            if l > CHUNK_SIZE or l < 0: l = CHUNK_SIZE
-            d = self.fmaps[id].read(l)
-            self.send(d)
-            if len(d) == 0: return
-            if size != -1: size -= len(d)
+        d = self.fmaps[id].read(size)
+        self.send(d)
+        # while size > 0 or size == -1:
+        #     l = size
+        #     if l > CHUNK_SIZE or l < 0: l = CHUNK_SIZE
+        #     print self.fmaps[id], l
+        #     d = self.fmaps[id].read(l)
+        #     self.send(d)
+        #     if len(d) == 0: return
+        #     if size != -1: size -= len(d)
 
     def on_seek(self, id, offset, whence):
         self.fmaps[id].seek(offset, whence)
