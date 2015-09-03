@@ -42,6 +42,8 @@ def parse_channel():
         return local.SshSudoChannel
     if optdict['-n'] == 'pssh':
         return local.PSshChannel
+    if optdict['-n'] == 'psudo':
+        return local.PSshSudoChannel
     return name2obj(optdict['-n'])
 
 def parse_protocol():
@@ -102,7 +104,7 @@ def main():
     -h: help, you just seen.
     -M: print with hostname.
     -m: host list as parameter.
-    -n: channel mode, local, ssh or sudo. ssh is default.
+    -n: channel mode, can be local, ssh or sudo, pssh or psudo. ssh is default.
     -p: protocol mode, binary or base64, or other class. binary is default.
     -s: run in serial mode.
     -x: eval mode. normally run in single mode.
