@@ -37,9 +37,8 @@ it will print all infomation about remote machine.
 
 # How developer use it
 
-    class ChannelClass(local.SshChannel, local.BinaryEncoding):
-	    pass
-    with ChannelClass(hostname) as h:
+    chancls = type('C', (local.SshChannel, local.BinaryEncoding), {})
+    with chancls(hostname) as h:
 	    h.execute('xxx')
 		result = h.eval('xxx')
 		h.run_single('xxx; xxx')

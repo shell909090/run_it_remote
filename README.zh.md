@@ -35,9 +35,8 @@
 
 # 开发接口
 
-    class ChannelClass(local.SshChannel, local.BinaryEncoding):
-	    pass
-    with ChannelClass(hostname) as h:
+    chancls = type('C', (local.SshChannel, local.BinaryEncoding), {})
+    with chancls(hostname) as h:
 	    h.execute('xxx')
 		result = h.eval('xxx')
 		h.run_single('xxx; xxx')

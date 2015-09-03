@@ -57,19 +57,18 @@ def parse_hostlist():
         return get_source(fi)
     elif '-m' in optdict:
         return optdict['-m'].split(',')
-    else:
-        print 'can\'t find host list.'
-        print 'you may define by stdin(-c), file(-f) or machine(-m).'
-        return None
+    print 'can\'t find host list.'
+    print 'you may define by stdin(-c), file(-f) or machine(-m).'
+    return None
 
-def prepare_modules(ins, command):
+def prepare_modules(rmt, command):
     if '(' not in command:
         return
     funcname = command.split('(', 1)[0]
     if '.' not in funcname:
         return
     module_name = funcname.rsplit('.', 1)[0]
-    ins.execute('import ' + module_name)
+    rmt.execute('import ' + module_name)
 
 def run_eval_host(ChanCls):
     def inner(host):
