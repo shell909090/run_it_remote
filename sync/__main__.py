@@ -27,26 +27,31 @@ def listdesc(dirname):
         yield desc
 
 def sync_desc(desc):
-    class ChannelClass(remote.SshSudoChannel, remote.BinaryEncoding):
-        pass
-    with remote.Remote(ChannelClass(desc['hostname'])) as rmt:
+    ChanCls = type('C', (remote.SshSudoChannel, remote.BinaryEncoding), {})
+    with remote.Remote(ChanCls(desc['hostname'])) as rmt:
         for syncinfo in desc['synclist']:
-            rmtpath = syncinfo['remote']
-            if rmtpath.startswith('~'):
-                rmtpath = rmt.apply(path.expanduser, rmtpath)
+            remote = syncinfo['remote']
+            if remote.startswith('~'):
+                remote = rmt.apply(path.expanduser, remote)
+
             partten = None
-            if '*' in rmtpath:
-                partten, rmtpath = path.basename(rmtpath), path.dirname(rmtpath)
-                logging.info('rmt: %s, partten: %s' % (rmtpath, partten))
-                if '*' in rmtpath:
+            if '*' in remote:
+                partten, remote = path.basename(remote), path.dirname(remote)
+                logging.info('rmt: %s, partten: %s' % (remote, partten))
+                if '*' in remote:
                     raise Exception('match just allow in last level.')
-            local = syncinfo.get('local') or rmtpath
+
+            local = syncinfo.get('local') or remote
             if local.startswith(path.sep):
                 local = local[1:]
             local = path.join(desc['hostname'], local)
+
             if '-b' in optdict:
                 sync.sync_back(
-                    rmt, rmtpath, local, syncinfo.get('recurse', True), partten)
+                    rmt, remote, local, syncinfo.get('recurse', True), partten)
+            else:
+                sync.sync_to(
+                    rmt, remote, local, syncinfo.get('recurse', True), partten)
 
 def main():
     '''
@@ -84,7 +89,5 @@ def main():
             desces.append(desc)
 
     remote.__main__.parallel_map_t(sync_desc, desces)
-    # for desc in desces:
-    #     sync_desc(desc)
 
 if __name__ == '__main__': main()

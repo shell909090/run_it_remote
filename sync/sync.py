@@ -61,22 +61,27 @@ def sync_back(rmt, remote, local, recurse=True, partten=None):
     # this is a file.
     if 'common' not in desc:
         sync_file_back(rmt, remote, local, desc)
-        return
+        return desc
 
     # it must be a dir now.
     # if local dir not exists, create it first.
     if not path.exists(local):
         os.makedirs(local)
+
     # sync all files back
     for file, d in desc['filelist'].iteritems():
         if partten and not fnmatch.fnmatch(file, partten):
             continue
         sync_file_back(rmt, path.join(remote, file), path.join(local, file), d)
+
     # write down meta file
     write_down_meta(path.join(local, '.meta'), desc)
+
     # if recurse, sync dir recursively.
-    if not recurse: return
-    for dir, d in desc['dirlist'].iteritems():
-        if partten and not fnmatch.fnmatch(file, partten):
-            continue
-        sync_back(rmt, path.join(remote, dir), path.join(local, dir), recurse, None)
+    if recurse:
+        for dir, d in desc['dirlist'].iteritems():
+            if partten and not fnmatch.fnmatch(file, partten):
+                continue
+            sync_back(rmt, path.join(remote, dir), path.join(local, dir), recurse, None)
+
+    # return dir's description
