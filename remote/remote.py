@@ -8,8 +8,6 @@
 '''
 import os, sys, imp, zlib, struct, marshal
 
-CHUNK_SIZE = 2147483647
-
 def add_module(name):
     if name not in sys.modules:
         sys.modules[name] = imp.new_module(name)
@@ -96,25 +94,18 @@ class ChannelFile(object):
     def __init__(self, channel, id):
         self.channel, self.id = channel, id
 
-    def __enter__(self): return self
-    def __exit__(self, exc_type, exc_value, traceback): self.close()
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.close()
 
     def write(self, s):
-        # s = str(s)
-        # while s:
-        #     d, s = s[:CHUNK_SIZE], s[CHUNK_SIZE:]
-        #     self.channel.send(['write', self.id, d])
         self.channel.send(['write', self.id, s])
 
     def read(self, size=-1):
         self.channel.send(['read', self.id, size])
         return self.channel.recv()
-        # d = ''
-        # while len(d) < size or size == -1:
-        #     r = self.channel.recv()
-        #     if len(r) == 0: break
-        #     d += r
-        # return d
 
     def seek(self, offset, whence):
         self.channel.send(['seek', self.id, offset, whence])
@@ -125,54 +116,47 @@ class ChannelFile(object):
     def close(self):
         self.channel.send(['close', self.id])
 
-class BaseChannel(object):
+class Remote(object):
 
-    def __init__(self): self.g = dict()
+    def __init__(self, chan):
+        self.chan = chan
+        self.g = dict()
 
     def loop(self):
         while True:
-            o = self.recv()
+            o = self.chan.recv()
             if o[0] == 'exit': break
             if o[0] == 'result': return o[1]
             if o[0] == 'apply':
                 r = eval(o[1], self.g)(*o[2:])
             elif o[0] in ('exec', 'eval', 'single'):
                 r = eval(compile(o[1], '<%s>' % o[0], o[0]), self.g)
-            self.send(['result', r])
-
-    def send(self, o):
-        d = zlib.compress(marshal.dumps(o))
-        self.stdout.write(struct.pack('>I', len(d)) + d)
-        self.stdout.flush()
-
-    def recv(self):
-        l = struct.unpack('>I', sys.stdin.read(4))[0]
-        return marshal.loads(zlib.decompress(sys.stdin.read(l)))
+            self.chan.send(['result', r])
 
     def open(self, filepath, mode):
-        self.send(['open', filepath, mode])
-        r = self.recv()
+        self.chan.send(['open', filepath, mode])
+        r = self.chan.recv()
         return ChannelFile(self, r)
 
     def getstd(self, which):
-        self.send(['std', which])
-        r = self.recv()
-        return ChannelFile(self, r)
+        self.chan.send(['std', which])
+        id = self.chan.recv()
+        return ChannelFile(self.chan, id)
 
     def eval(self, f):
-        self.send(['eval', f])
+        self.chan.send(['eval', f])
         return self.loop()
 
     def execute(self, f):
-        self.send(['exec', f])
+        self.chan.send(['exec', f])
         return self.loop()
 
     def single(self, f):
-        self.send(['single', f])
+        self.chan.send(['single', f])
         return self.loop()
 
     def apply(self, f, *p):
-        self.send(['apply', self.sendfunc(f)] + list(p))
+        self.chan.send(['apply', self.sendfunc(f)] + list(p))
         return self.loop()
 
     def sendfunc(self, f):
@@ -187,28 +171,29 @@ class BaseChannel(object):
             fname = m.__name__ + '.' + fname
         return fname
 
-class StdChannel(BaseChannel):
+class BinaryEncoding(object):
+
+    def send(self, o):
+        d = zlib.compress(marshal.dumps(o))
+        self.write(struct.pack('>I', len(d)) + d)
+
+    def recv(self):
+        l = struct.unpack('>I', self.read(4))[0]
+        return marshal.loads(zlib.decompress(self.read(l)))
+
+class StdChannel(object):
 
     def __init__(self):
-        BaseChannel.__init__(self)
         self.stdin, self.stdout = sys.stdin, os.fdopen(os.dup(1), 'w')
         os.close(1)
         os.dup2(2, 1)
 
-class NetChannel(BaseChannel):
+    def write(self, d):
+        self.stdout.write(d)
+        self.stdout.flush()
 
-    def __init__(self, host, port):
-        BaseChannel.__init__(self)
-        import socket
-        self.listen = socket.socket()
-        self.listen.bind((host, port))
-        self.listen.listen(1)
-
-    def loop(self):
-        while True:
-            self.sock, self.addr = self.listen.accept()
-            self.stdout = self.stdin = self.sock.makefile('rw')
-            BaseChannel.loop(self)
+    def read(self, n):
+        return self.stdin.read(n)
 
 def main():
     import getopt
@@ -218,17 +203,15 @@ def main():
         print main.__doc__
         return
 
-    global channel
-    if '-n' in optdict:
-        host, port = optdict['-n'].rsplit(':', 1)
-        port = int(port)
-        channel = NetChannel(host, port)
-    else: channel = StdChannel()
+    class DefaultChannel(StdChannel, BinaryEncoding):
+        pass
+    channel = DefaultChannel()
+    remote = Remote(channel)
 
     sys.modules['remote'] = __import__(__name__)
     sys.meta_path.append(Finder(channel))
-    sys.stdout = channel.getstd('stdout')
+    sys.stdout = remote.getstd('stdout')
     channel.send(['result', None])
-    channel.loop()
+    remote.loop()
 
 if __name__ == '__main__': main()

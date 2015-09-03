@@ -16,13 +16,12 @@ Attention: hostname should be a debian/ubuntu. cause get_dpkg, as it named, are 
 
 try this:
 
-    python -m remote -e -i sudo -p -m host1,host2 'hwinfo.all_info()'
+    python -m remote -x -n sudo -m host1,host2 'hwinfo.all_info()'
 
 it will print all infomation about remote machine.
 
-* -e for eval mode. result will get back and dump out as json.
-* -i for instance select. we run remote by sudo.
-* -p for parallel.
+* -x for eval mode. result will get back and dump out as json.
+* -n for channel select. we run remote by sudo.
 * -m for machine list, -f(file) or -c(stdin) also can be use.
 * hwinfo.all_info is a program in hwinfo.py. it will collect all infomation about remote machine.
 
@@ -38,13 +37,14 @@ it will print all infomation about remote machine.
 
 # How developer use it
 
-As main.py:
+    class ChannelClass(local.SshChannel, local.BinaryEncoding):
+	    pass
+    with ChannelClass(hostname) as h:
+	    h.execute('xxx')
+		result = h.eval('xxx')
+		h.run_single('xxx; xxx')
 
-    h = SshInstance(hostname)
-	h.execute('xxx')
-	result = h.eval('xxx')
-	h.run_single('xxx; xxx')
-	h.close()
+More example, see remote/__main__.py.
 
 ## difference between execute and eval
 

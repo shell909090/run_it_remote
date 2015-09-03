@@ -14,13 +14,12 @@
 
 试试:
 
-    python -m remote -e -i sudo -p -m host1,host2 'hwinfo.all_info()'
+    python -m remote -x -n sudo -m host1,host2 'hwinfo.all_info()'
 
 这应当会打出远程机器的配置。
 
-* -e是使用eval模式工作的意思，结果会被收集回来，使用json格式打印出来。
-* -i是instance模式选择，这里使用sudo在远程执行。
-* -p是并行工作。
+* -x是使用eval模式工作的意思，结果会被收集回来，使用json格式打印出来。
+* -n是channel模式选择，这里使用sudo在远程执行。
 * -m是机器列表，也可以用-f或-c指定。
 * hwinfo.all_info是附带的收集机器信息的程序。
 
@@ -36,13 +35,14 @@
 
 # 开发接口
 
-main.py里有例子:
+    class ChannelClass(local.SshChannel, local.BinaryEncoding):
+	    pass
+    with ChannelClass(hostname) as h:
+	    h.execute('xxx')
+		result = h.eval('xxx')
+		h.run_single('xxx; xxx')
 
-    h = SshInstance(hostname)
-	h.execute('xxx')
-	result = h.eval('xxx')
-	h.run_single('xxx; xxx')
-	h.close()
+remote/__main__.py里有进一步例子。
 
 ## eval, execute和run_single的区别
 
