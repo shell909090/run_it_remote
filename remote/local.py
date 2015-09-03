@@ -119,6 +119,62 @@ class SshSudoChannel(ProcessChannel):
     def __repr__(self):
         return self.host
 
+class ParamikoChannel(object):
+
+    # had to set auto_hostkey to True, for detail: https://github.com/paramiko/paramiko/issues/67
+
+    def __init__(self, host, cmd, auto_hostkey=True, **kw):
+        import paramiko
+        self.ssh = paramiko.SSHClient()
+        print self.ssh.get_host_keys().items()
+        self.ssh.load_system_host_keys()
+        print self.ssh.get_host_keys().items()
+        if auto_hostkey:
+            self.ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        self.ssh.connect(host, **kw)
+        self.stdin, self.stdout, self.stderr = self.ssh.exec_command(cmd)
+
+    def close(self):
+        self.ssh.close()
+
+    def write(self, d):
+        try:
+            self.stdin.write(d)
+            self.stdin.flush()
+        except:
+            print self.stderr.read()
+            raise
+
+    def read(self, n):
+        try:
+            return self.stdout.read(n)
+        except:
+            print self.stderr.read()
+            raise
+
+class PSshChannel(ParamikoChannel):
+
+    def __init__(self, host, auto_hostkey=False, **kw):
+        cmd = 'python -c "%s"' % self.BOOTSTRAP
+        ParamikoChannel.__init__(self, host, cmd, auto_hostkey, **kw)
+        self.host = host
+
+    def __repr__(self):
+        return self.host
+
+class PSshSudoChannel(ParamikoChannel):
+
+    def __init__(self, host, user=None, auto_hostkey=False, **kw):
+        if user:
+            cmd = 'sudo -u %s python -c "%s"' % (user, self.BOOTSTRAP)
+        else:
+            cmd = 'sudo python -c "%s"' % self.BOOTSTRAP
+        ParamikoChannel.__init__(self, host, cmd, auto_hostkey, **kw)
+        self.host, self.user = host, user
+
+    def __repr__(self):
+        return self.host
+
 class Remote(object):
 
     def __init__(self, chan):

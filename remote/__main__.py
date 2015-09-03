@@ -40,6 +40,8 @@ def parse_channel():
         return local.SshChannel
     if optdict['-n'] == 'sudo':
         return local.SshSudoChannel
+    if optdict['-n'] == 'pssh':
+        return local.PSshChannel
     return name2obj(optdict['-n'])
 
 def parse_protocol():
