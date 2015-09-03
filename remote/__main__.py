@@ -71,22 +71,26 @@ def prepare_modules(ins, command):
     module_name = funcname.rsplit('.', 1)[0]
     ins.execute('import ' + module_name)
 
-def run_eval_host(host):
-    with local.Remote(ChannelClass(host)) as rmt:
-        for command in args:
-            prepare_modules(rmt, command)
-            result = rmt.eval(command)
-            result = json.dumps(result)
-            if '-M' in optdict:
-                print '%s: %s' % (host, result)
-            else:
-                print result
+def run_eval_host(ChanCls):
+    def inner(host):
+        with local.Remote(ChanCls(host)) as rmt:
+            for command in args:
+                prepare_modules(rmt, command)
+                result = rmt.eval(command)
+                result = json.dumps(result)
+                if '-M' in optdict:
+                    print '%s: %s' % (host, result)
+                else:
+                    print result
+    return inner
 
-def run_single_host(host):
-    with local.Remote(ChannelClass(host)) as rmt:
-        for command in args:
-            print '-----%s output: %s-----' % (host, command)
-            rmt.single(command)
+def run_single_host(ChanCls):
+    def inner(host):
+        with local.Remote(ChanCls(host)) as rmt:
+            for command in args:
+                print '-----%s output: %s-----' % (host, command)
+                rmt.single(command)
+    return inner
 
 def main():
     '''
@@ -97,8 +101,8 @@ def main():
     -h: help, you just seen.
     -M: print with hostname.
     -m: host list as parameter.
-    -n: channel mode, local, ssh or sudo.
-    -p: protocol mode, binary or base64, or other class.
+    -n: channel mode, local, ssh or sudo. ssh is default.
+    -p: protocol mode, binary or base64, or other class. binary is default.
     -s: run in serial mode.
     -x: eval mode. normally run in single mode.
     '''
@@ -113,19 +117,18 @@ def main():
     if '-l' in optdict:
         logging.basicConfig(level=optdict['-l'].upper())
 
-    chancls = parse_channel()
-    protcls = parse_protocol()
-    global ChannelClass
-    class ChannelClass(chancls, protcls):
-        pass
-
     hostlist = parse_hostlist()
     if hostlist is None:
         return
 
-    run_host = run_single_host
+    chancls = parse_channel()
+    protcls = parse_protocol()
+    ChanCls = type('C', (chancls, protcls), {})
+
     if '-x' in optdict:
-        run_host = run_eval_host
+        run_host = run_eval_host(ChanCls)
+    else:
+        run_host = run_single_host(ChanCls)
 
     if '-s' in optdict:
         return map(run_host, hostlist)

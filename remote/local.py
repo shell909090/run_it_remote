@@ -29,7 +29,7 @@ def show_msg(action, o):
 
 class BinaryEncoding(object):
 
-    BOOTSTRAP = '''import sys, zlib, struct, marshal; exec compile(marshal.loads(zlib.decompress(sys.stdin.read(struct.unpack('>I', sys.stdin.read(4))[0]))), '<remote>', 'exec')'''
+    BOOTSTRAP = '''import sys, zlib, struct, marshal; l = struct.unpack('>I', sys.stdin.read(4))[0]; o = marshal.loads(zlib.decompress(sys.stdin.read(l))); exec compile(o, '<remote>', 'exec')'''
 
     def send(self, o):
         show_msg('send', o)
@@ -44,7 +44,10 @@ class BinaryEncoding(object):
 
 class Base64Encoding(object):
 
-    BOOTSTRAP = '''import sys, zlib, struct, marshal; exec compile(marshal.loads(zlib.decompress(sys.stdin.read(struct.unpack('>I', sys.stdin.read(4))[0]))), '<remote>', 'exec')'''
+    BOOTSTRAP = '''import sys, zlib, base64, struct, marshal; l = struct.unpack('>I', base64.b64decode(sys.stdin.read(8)))[0]; o = marshal.loads(zlib.decompress(base64.b64decode(sys.stdin.read(l)))); exec compile(o, '<remote>', 'exec')'''
+
+    def translate_remote(self, d):
+        return d.replace('StdChannel, BinaryEncoding', 'StdChannel, Base64Encoding')
     
     def send(self, o):
         show_msg('send', o)
@@ -122,7 +125,10 @@ class Remote(object):
 
         basedir = path.dirname(__file__)
         with open(path.join(basedir, 'remote.py'), 'r') as fi:
-            self.chan.send(fi.read())
+            d = fi.read()
+        if hasattr(self.chan, 'translate_remote'):
+            d = self.chan.translate_remote(d)
+        self.chan.send(d)
         self.loop()
 
     def __repr__(self):

@@ -181,6 +181,17 @@ class BinaryEncoding(object):
         l = struct.unpack('>I', self.read(4))[0]
         return marshal.loads(zlib.decompress(self.read(l)))
 
+class Base64Encoding(object):
+    
+    def send(self, o):
+        d = base64.b64encode(zlib.compress(marshal.dumps(o), 9))
+        self.write(base64.b64encode(struct.pack('>I', len(d))) + d)
+
+    def recv(self):
+        l = struct.unpack('>I', base64.b64decode(self.read(8)))[0]
+        o = marshal.loads(zlib.decompress(base64.b64decode(self.read(l))))
+        return o
+
 class StdChannel(object):
 
     def __init__(self):
@@ -203,9 +214,7 @@ def main():
         print main.__doc__
         return
 
-    class DefaultChannel(StdChannel, BinaryEncoding):
-        pass
-    channel = DefaultChannel()
+    channel = type('C', (StdChannel, BinaryEncoding), {})()
     remote = Remote(channel)
 
     sys.modules['remote'] = __import__(__name__)
