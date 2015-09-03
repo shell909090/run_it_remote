@@ -10,38 +10,52 @@ import os
 import sys
 import imp
 import zlib
+import base64
 import struct
 import marshal
 import inspect
 import logging
 from os import path
 
+def show_msg(action, o):
+    if isinstance(o, list):
+        logging.debug('%s: %s', action, str(o))
+    elif isinstance(o, (int, long)):
+        logging.debug('%s int: %d', action, o)
+    elif isinstance(o, basestring):
+        logging.debug('%s str: %d', action, len(o))
+    else:
+        logging.debug('%s: unknown', action)
+
 class BinaryEncoding(object):
 
     BOOTSTRAP = '''import sys, zlib, struct, marshal; exec compile(marshal.loads(zlib.decompress(sys.stdin.read(struct.unpack('>I', sys.stdin.read(4))[0]))), '<remote>', 'exec')'''
 
     def send(self, o):
-        if isinstance(o, list):
-            logging.debug('send: %s', str(o))
-        elif isinstance(o, (int, long)):
-            logging.debug('send int: %d' % o)
-        elif isinstance(o, basestring):
-            logging.debug('send str: %d' % len(o))
-        else: logging.debug('send: data')
+        show_msg('send', o)
         d = zlib.compress(marshal.dumps(o), 9)
         self.write(struct.pack('>I', len(d)) + d)
 
     def recv(self):
         l = struct.unpack('>I', self.read(4))[0]
         o = marshal.loads(zlib.decompress(self.read(l)))
-        if isinstance(o, list):
-            logging.debug('recv: %s', str(o))
-        else:
-            logging.debug('recv: data')
+        show_msg('recv', o)
         return o
 
 class Base64Encoding(object):
-    pass
+
+    BOOTSTRAP = '''import sys, zlib, struct, marshal; exec compile(marshal.loads(zlib.decompress(sys.stdin.read(struct.unpack('>I', sys.stdin.read(4))[0]))), '<remote>', 'exec')'''
+    
+    def send(self, o):
+        show_msg('send', o)
+        d = base64.b64encode(zlib.compress(marshal.dumps(o), 9))
+        self.write(base64.b64encode(struct.pack('>I', len(d))) + d)
+
+    def recv(self):
+        l = struct.unpack('>I', base64.b64decode(self.read(8)))[0]
+        o = marshal.loads(zlib.decompress(base64.b64decode(self.read(l))))
+        show_msg('recv', o)
+        return o
 
 class ProcessChannel(object):
 

@@ -27,24 +27,26 @@ def listdesc(dirname):
         yield desc
 
 def sync_desc(desc):
-    with remote.SudoSshInstance(desc['hostname']) as ins:
+    class ChannelClass(remote.SshSudoChannel, remote.BinaryEncoding):
+        pass
+    with remote.Remote(ChannelClass(desc['hostname'])) as rmt:
         for syncinfo in desc['synclist']:
-            rmt = syncinfo['remote']
-            if rmt.startswith('~'):
-                rmt = ins.apply(path.expanduser, rmt)
+            rmtpath = syncinfo['remote']
+            if rmtpath.startswith('~'):
+                rmtpath = rmt.apply(path.expanduser, rmtpath)
             partten = None
-            if '*' in rmt:
-                partten, rmt = path.basename(rmt), path.dirname(rmt)
-                logging.info('rmt: %s, partten: %s' % (rmt, partten))
-                if '*' in rmt:
+            if '*' in rmtpath:
+                partten, rmtpath = path.basename(rmtpath), path.dirname(rmtpath)
+                logging.info('rmt: %s, partten: %s' % (rmtpath, partten))
+                if '*' in rmtpath:
                     raise Exception('match just allow in last level.')
-            local = syncinfo.get('local') or rmt
+            local = syncinfo.get('local') or rmtpath
             if local.startswith(path.sep):
                 local = local[1:]
             local = path.join(desc['hostname'], local)
             if '-b' in optdict:
                 sync.sync_back(
-                    ins, rmt, local, syncinfo.get('recurse', True), partten)
+                    rmt, rmtpath, local, syncinfo.get('recurse', True), partten)
 
 def main():
     '''

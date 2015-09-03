@@ -22,7 +22,7 @@ MAX_SYNC_SIZE = 10 * 1024 * 1024
 # TODO: sync file to.
 
 # TODO: sync files back, use write files. process multiple files in one call.
-def sync_file_back(ins, remote, local, desc):
+def sync_file_back(rmt, remote, local, desc):
     if path.exists(local):
         st = os.stat(local)
         if not stat.S_ISREG(st.st_mode):
@@ -38,7 +38,7 @@ def sync_file_back(ins, remote, local, desc):
     # where did I get metafile?
     # so desc can't just write a file.
     # if so, no meta file.
-    data = ins.apply(api.read_file, remote)
+    data = rmt.apply(api.read_file, remote)
     with open(local, 'wb') as fi:
         fi.write(data)
 
@@ -54,13 +54,13 @@ def write_down_meta(filepath, desc):
     with open(filepath, 'wb') as fo:
         fo.write(yaml.dump(newdesc))
 
-def sync_back(ins, remote, local, recurse=True, partten=None):
-    logging.warning('sync %s in %s.' % (remote, str(ins)))
-    desc = ins.apply(api.gen_desc, remote, partten)
+def sync_back(rmt, remote, local, recurse=True, partten=None):
+    logging.warning('sync %s in %s.' % (remote, str(rmt)))
+    desc = rmt.apply(api.gen_desc, remote, partten)
 
     # this is a file.
     if 'common' not in desc:
-        sync_file_back(ins, remote, local, desc)
+        sync_file_back(rmt, remote, local, desc)
         return
 
     # it must be a dir now.
@@ -71,7 +71,7 @@ def sync_back(ins, remote, local, recurse=True, partten=None):
     for file, d in desc['filelist'].iteritems():
         if partten and not fnmatch.fnmatch(file, partten):
             continue
-        sync_file_back(ins, path.join(remote, file), path.join(local, file), d)
+        sync_file_back(rmt, path.join(remote, file), path.join(local, file), d)
     # write down meta file
     write_down_meta(path.join(local, '.meta'), desc)
     # if recurse, sync dir recursively.
@@ -79,4 +79,4 @@ def sync_back(ins, remote, local, recurse=True, partten=None):
     for dir, d in desc['dirlist'].iteritems():
         if partten and not fnmatch.fnmatch(file, partten):
             continue
-        sync_back(ins, path.join(remote, dir), path.join(local, dir), recurse, None)
+        sync_back(rmt, path.join(remote, dir), path.join(local, dir), recurse, None)
