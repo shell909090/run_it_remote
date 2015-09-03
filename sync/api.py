@@ -39,8 +39,11 @@ def get_groupname(gid):
 
 def gen_fileinfo(filepath):
     st = os.lstat(filepath)
-    return [path.basename(filepath), st.st_size, st.st_mode,
-            get_username(st.st_uid), get_groupname(st.st_gid)]
+    fi = [path.basename(filepath), st.st_size, st.st_mode,
+          get_username(st.st_uid), get_groupname(st.st_gid)]
+    if stat.S_ISLNK(st.st_mode):
+        fi.append(os.readlink(filepath))
+    return fi
 
 def listdir(dirname, partten=None):
     filist = []
@@ -61,7 +64,7 @@ def stat_dir(filist):
         users[fi[3]] += 1
         groups[fi[4]] += 1
         st = fi[2]
-        if stat.S_ISREG(st):
+        if stat.S_ISREG(st) or stat.S_ISLNK(st):
             files[stat.S_IMODE(st)] += 1
         elif stat.S_ISDIR(st):
             dirs[stat.S_IMODE(st)] += 1
@@ -76,7 +79,7 @@ def gen_md5hash(filepath):
         h = hashlib.md5()
         h.update(read_file(filepath))
         return h.hexdigest()
-    except IOError:
+    except IOError: # no priv to read
         return
 
 def gen_file_desc(filepath, username=None, groupname=None, filemode=None):
@@ -91,6 +94,8 @@ def gen_file_desc(filepath, username=None, groupname=None, filemode=None):
         fstat['group'] = fi[4]
     if stat.S_IMODE(fi[2]) != filemode:
         fstat['mode'] = stat.S_IMODE(fi[2])
+    if stat.S_ISLNK(fi[2]):
+        fstat['link'] = fi[5]
     return fstat
 
 # TODO: record lnk in meta file
@@ -100,7 +105,7 @@ def gen_dir_desc(dirname, partten=None):
     files, dirs = {}, {}
     for fi in filist:
         st = fi[2]
-        if stat.S_ISREG(st):
+        if stat.S_ISREG(st) or stat.S_ISLNK(st):
             files[fi[0]] = gen_file_desc(
                 path.join(dirname, fi[0]), username, groupname, filemode)
         elif stat.S_ISDIR(st):

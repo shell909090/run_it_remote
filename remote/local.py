@@ -18,7 +18,9 @@ import logging
 from os import path
 
 def show_msg(action, o):
-    if isinstance(o, list):
+    if o is None:
+        logging.debug('%s: none', action)
+    elif isinstance(o, list):
         logging.debug('%s: %s', action, str(o))
     elif isinstance(o, (int, long)):
         logging.debug('%s int: %d', action, o)
@@ -205,6 +207,31 @@ class Remote(object):
 
     def on_except(self, err):
         raise Exception(err)
+
+    def enable_aes(self):
+        import dh
+        from Crypto.Cipher import AES
+
+        # Diffie-Hellman key exchange
+        pri_key, pri_iv = dh.gen_prikey(), dh.gen_prikey()
+        self.chan.send(['dh', dh.gen_pubkey(pri_key), dh.gen_pubkey(pri_iv)])
+        other_key, other_iv = self.loop()
+        key = dh.gen_key(pri_key, other_key)
+        iv = dh.gen_key(pri_iv, other_iv)
+
+        self.encryptor = AES.new(key, AES.MODE_CBC, IV=iv)
+        self.decryptor = AES.new(key, AES.MODE_CBC, IV=iv)
+        origwrite, origread = self.chan.write, self.chan.read
+        def write(d):
+            return origwrite(self.encryptor.encrypt(d))
+        def read(n):
+            d = origread(n)
+            return self.decryptor.decrypt(d)
+        self.chan.write = write
+        self.chan.read = read
+
+        # for last result.
+        return self.loop()
 
     def eval(self, f):
         self.chan.send(['eval', f])

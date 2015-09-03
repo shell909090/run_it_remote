@@ -129,9 +129,32 @@ class Remote(object):
             if o[0] == 'result': return o[1]
             if o[0] == 'apply':
                 r = eval(o[1], self.g)(*o[2:])
+            elif o[0] == 'dh':
+                r = self.do_dh(o[1], o[2])
             elif o[0] in ('exec', 'eval', 'single'):
                 r = eval(compile(o[1], '<%s>' % o[0], o[0]), self.g)
             self.chan.send(['result', r])
+
+    def do_dh(self, other_key, other_iv):
+        from remote import dh
+        from Crypto.Cipher import AES
+
+        # Diffie-Hellman key exchange
+        pri_key, pri_iv = dh.gen_prikey(), dh.gen_prikey()
+        key = dh.gen_key(pri_key, other_key)
+        iv = dh.gen_key(pri_iv, other_iv)
+        self.chan.send(['result', [dh.gen_pubkey(pri_key), dh.gen_pubkey(pri_iv)]])
+
+        self.encryptor = AES.new(key, AES.MODE_CBC, IV=iv)
+        self.decryptor = AES.new(key, AES.MODE_CBC, IV=iv)
+        origwrite, origread = self.chan.write, self.chan.read
+        def write(d):
+            return origwrite(self.encryptor.encrypt(d))
+        def read(n):
+            d = origread(n)
+            return self.decryptor.decrypt(d)
+        self.chan.write = write
+        self.chan.read = read
 
     def open(self, filepath, mode):
         self.chan.send(['open', filepath, mode])
@@ -217,7 +240,7 @@ def main():
     channel = type('C', (StdChannel, BinaryEncoding), {})()
     remote = Remote(channel)
 
-    sys.modules['remote'] = __import__(__name__)
+    sys.modules['run_it_remote'] = __import__(__name__)
     sys.meta_path.append(Finder(channel))
     sys.stdout = remote.getstd('stdout')
     channel.send(['result', None])
