@@ -14,25 +14,21 @@ from os import path
 import yaml
 import api
 
-MAX_SYNC_SIZE = 10 * 1024 * 1024
-
-# TODO: sync file to.
-
 def reloca_path(filepath, origbase, newbase):
     rpath = path.relpath(filepath, origbase)
-    if rpath == '.': return newbase
-    return path.join(newbase, rpath)
+    if rpath == '.':
+        reloc = newbase
+    else:
+        reloc = path.join(newbase, rpath)
+    logging.debug('%s reloc from %s to %s => %s',
+                  filepath, origbase, newbase, reloc)
+    return reloc
 
 def chk4file(filist, remote, local):
     f2sync = []
     for fi in filist:
         if fi['type'] != stat.S_IFREG: continue
         localpath = reloca_path(fi['path'], remote, local)
-        print fi['path'], remote, local, '=>', localpath
-
-        if fi['size'] > MAX_SYNC_SIZE:
-            logging.error('file %s size %d out of limit' % (localpath, fi['size']))
-            continue # pass
 
         if path.lexists(localpath): # link is not ok.
             st = os.lstat(localpath)
@@ -45,7 +41,6 @@ def chk4file(filist, remote, local):
         # if base dir not exist, create it first.
         dirname = path.dirname(localpath)
         if not path.exists(dirname): # link is ok.
-            print 'create dir', dirname
             logging.info('create dir %s' % dirname)
             os.makedirs(dirname)
 
@@ -59,7 +54,10 @@ def sync_back(rmt, remote, local, partten=None):
     try:
         datas = rmt.apply(api.read_files, [f[0] for f in f2sync])
         api.write_files(zip([f[1] for f in f2sync], datas))
-    except: # read_files failed, maybe total size of files are larger then 4GB.
+    except Exception as err:
+        # maybe total size of files are larger then 4GB.
+        logging.error("sync files failed, exception: %s.", str(err))
+        logging.info("retry sync file one by one.")
         for rmtpath, localpath in f2sync:
             data = rmt.apply(api.read_file, rmtpath)
             api.write_file(localpath, data)
@@ -72,8 +70,21 @@ def sync_to(rmt, remote, local, partten=None):
     try:
         datas = api.read_files([f[0] for f in f2sync])
         rmt.apply(api.write_files, zip([f[1] for f in f2sync], datas))
-    except:
+    except Exception as err:
+        # maybe total size of files are larger then 4GB.
+        logging.error("sync files failed, exception: %s", str(err))
+        logging.info("retry sync file one by one.")
         for localpath, rmtpath in f2sync:
             data = api.read_file(localpath)
             rmt.apply(api.write_file, data)
     return filist
+
+def apply_meta(filist):
+    for fi in filist:
+        mode = fi['mode']
+        logging.info('chmod %s %s', fi['path'], oct(mode))
+        os.chmod(fi['path'], mode)
+        uid = api.get_userid(fi['user'])
+        gid = api.get_userid(fi['group'])
+        logging.info('chown %s %d %d', fi['path'], uid, gid)
+        os.lchown(fi['path'], uid, gid)

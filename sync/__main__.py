@@ -8,14 +8,15 @@
 '''
 import os
 import sys
+import stat
 import getopt
 import logging
 from os import path
-import yaml
 import remote, remote.__main__
 import api, sync
 
 def listdesc(dirname):
+    import yaml
     for filename in os.listdir(dirname):
         if not filename.endswith('.yaml'):
             continue
@@ -26,7 +27,7 @@ def listdesc(dirname):
             desc['hostname'] = hostname
         yield desc
 
-def get_syncinfo(syncinfo):
+def get_syncinfo(rmt, desc, syncinfo):
     rmtpath = syncinfo['remote']
     if rmtpath.startswith('~'):
         rmtpath = rmt.apply(path.expanduser, rmtpath)
@@ -42,29 +43,62 @@ def get_syncinfo(syncinfo):
     if local.startswith(path.sep):
         local = local[1:]
     local = path.join(desc['hostname'], local)
-
     return rmtpath, local, partten
 
+def merge_filist(filist, attrs, remote, local):
+    attrfiles = attrs['filelist']
+    for fi in filist:
+        fi2 = api.limit_attr(fi, set(['user', 'group', 'path', 'mode', 'type']))
+
+        if fi['type'] in (stat.S_IFREG, stat.S_IFLNK):
+            fi2.update(attrs['file'])
+        elif fi['type'] == stat.S_IFDIR:
+            fi2.update(attrs['dir'])
+        fi2.update()
+
+        remotepath = sync.reloca_path(fi['path'], local, remote)
+        fi2['path'] = remotepath
+        if remotepath in attrfiles:
+            fi2.update(attrfiles[remotepath])
+        yield fi2
+
+def cache_default_attr(attrs):
+    common = attrs['common']
+    attrs['file'] = {
+        'user': common['username'],
+        'group': common['groupname'],
+        'mode': common['filemode']}
+    attrs['dir'] = {
+        'user': common['username'],
+        'group': common['groupname'],
+        'mode': common['dirmode']}
+
 def sync_desc(desc):
+    import yaml
     ChanCls = type('C', (remote.SshSudoChannel, remote.BinaryEncoding), {})
     with remote.Remote(ChanCls(desc['hostname'])) as rmt:
         filist = []
+        if '-t' in optdict:
+            with open('%s.meta' % desc['hostname'], 'rb') as fi:
+                attrs = api.filist_load(fi.read())
+            cache_default_attr(attrs)
         for syncinfo in desc['synclist']:
-            rmtpath, local, partten = get_syncinfo(syncinfo)
+            rmtpath, local, partten = get_syncinfo(rmt, desc, syncinfo)
             if '-b' in optdict:
                 filist.extend(
                     sync.sync_back(rmt, rmtpath, local, partten))
             else:
-                sync.sync_to(rmt, rmtpath, local, partten)
-
-    if '-b' in optdict:
-        sync.write_down_meta(desc['hostname'], filist)
-        with open('%s.meta' % desc['hostname'], 'wb') as fo:
-            fo.write(api.filist_dump(filist))
-    else:
-        with open('%s.meta' % desc['hostname'], 'rb') as fi:
-            filist = api.filist_load(fi.read())
-        sync.apply_meta()
+                fl = sync.sync_to(rmt, rmtpath, local, partten)
+                fl = list(merge_filist(fl, attrs, rmtpath, local))
+                filist.extend(fl)
+        if '-b' in optdict:
+            doc = api.filist_dump(
+                filist, desc.get('user'), desc.get('group'),
+                desc.get('filemode'), desc.get('dirmode'))
+            with open('%s.meta' % desc['hostname'], 'wb') as fo:
+                fo.write(doc)
+        else:
+            rmt.apply(sync.apply_meta, filist)
 
 def main():
     '''

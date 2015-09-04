@@ -6,7 +6,7 @@
 @copyright: 2015, Shell.Xu <shell909090@gmail.com>
 @license: BSD-3-clause
 '''
-import os, sys, imp, zlib, struct, marshal
+import os, sys, imp, zlib, struct, marshal, logging
 
 def add_module(name):
     if name not in sys.modules:
@@ -229,6 +229,17 @@ class StdChannel(object):
     def read(self, n):
         return self.stdin.read(n)
 
+def initlog():
+    rootlog = logging.getLogger()
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setFormatter(
+        logging.Formatter(
+            '%(asctime)s,%(msecs)03d %(name)s[%(levelname)s]: %(message)s',
+            '%H:%M:%S'))
+    rootlog.addHandler(handler)
+    # FIXME: loglevel
+    rootlog.setLevel('DEBUG')
+
 def main():
     import getopt
     optlist, args = getopt.getopt(sys.argv[1:], 'hn:')
@@ -240,9 +251,10 @@ def main():
     channel = type('C', (StdChannel, BinaryEncoding), {})()
     remote = Remote(channel)
 
-    sys.modules['run_it_remote'] = __import__(__name__)
+    sys.modules['remote.remote'] = __import__(__name__)
     sys.meta_path.append(Finder(channel))
     sys.stdout = remote.getstd('stdout')
+    initlog()
     channel.send(['result', None])
     remote.loop()
 

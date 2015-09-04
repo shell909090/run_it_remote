@@ -16,6 +16,18 @@ import logging
 import collections
 from os import path
 
+MAX_SYNC_SIZE = 10 * 1024 * 1024
+
+def memorized(func):
+    cache = {}
+    from functools import wraps
+    @wraps(func)
+    def inner(k):
+        if k not in cache:
+            cache[k] = func(k)
+        return cache[k]
+    return inner
+
 def read_file(filepath):
     with open(filepath, 'rb') as fi:
         return fi.read()
@@ -31,12 +43,21 @@ def write_files(fs):
     for f, d in fs:
         write_file(f, d)
 
+@memorized
 def get_username(uid):
     return pwd.getpwuid(uid).pw_name
 
+@memorized
+def get_userid(username):
+    return pwd.getpwnam(username).pw_uid
+
+@memorized
 def get_groupname(gid):
     return grp.getgrgid(gid).gr_name
 
+@memorized
+def get_groupid(groupname):
+    return grp.getgrnam(groupname).pw_gid
 
 def gen_md5hash(filepath):
     try:
@@ -77,8 +98,10 @@ def walkdir(basedir, start=None, partten=None):
                 if not fnmatch.fnmatch(rpath, partten):
                     continue
             fi = gen_fileinfo(filepath, start)
-            if fi:
-                filist.append(fi)
+            if fi['size'] > MAX_SYNC_SIZE:
+                logging.error('file %s size %d out of limit' % (localpath, fi['size']))
+                continue # pass
+            if fi: filist.append(fi)
     return filist
 
 def listdir(dirname, partten=None):
@@ -91,24 +114,42 @@ def listdir(dirname, partten=None):
             filist.append(fi)
     return filist
 
-def stat_dir(filist):
+def stat_dir_user(filist, username=None):
+    if username: return username
     users = collections.Counter()
+    for fi in filist:
+        users[fi['user']] += 1
+    return users.most_common(1)[0][0] if users else None
+
+def stat_dir_group(filist, groupname=None):
+    if groupname: return groupname
     groups = collections.Counter()
+    for fi in filist:
+        groups[fi['group']] += 1
+    return groups.most_common(1)[0][0] if groups else None
+
+def stat_dir_mode(filist, filemode=None, dirmode=None):
+    if filemode and dirmode: return filemode, dirmode
     files = collections.Counter()
     dirs = collections.Counter()
     for fi in filist:
-        users[fi['user']] += 1
-        groups[fi['group']] += 1
         st = fi['type']
         if stat.S_ISREG(st) or stat.S_ISLNK(st):
             files[fi['mode']] += 1
         elif stat.S_ISDIR(st):
             dirs[fi['mode']] += 1
-    return (
-        users.most_common(1)[0][0] if users else None,
-        groups.most_common(1)[0][0] if groups else None,
-        files.most_common(1)[0][0] if files else None,
-        dirs.most_common(1)[0][0] if dirs else None)
+    if not filemode:
+        filemode = files.most_common(1)[0][0] if files else None
+    if not dirmode:
+        dirmode = dirs.most_common(1)[0][0] if dirs else None
+    return filemode, dirmode
+
+def limit_attr(fi, attrs):
+    rslt = {}
+    for k, v in fi.iteritems():
+        if k in attrs:
+            rslt[k] = v
+    return rslt
 
 filetype_map = {
     stat.S_IFDIR: 'dir',
@@ -127,9 +168,10 @@ def transmode(fi, value):
     else:
         fi['mode'] = oct(fi['mode'])
 
-# FIXME: setable username, groupname, filemode, dirmode
-def filist_dump(filist):
-    username, groupname, filemode, dirmode = stat_dir(filist)
+def filist_dump(filist, username=None, groupname=None, filemode=None, dirmode=None):
+    username = stat_dir_user(filist, username)
+    groupname = stat_dir_group(filist, groupname)
+    filemode, dirmode = stat_dir_mode(filist, filemode, dirmode)
     fileattrs = set(['path', 'type',])
 
     files = {}
@@ -164,53 +206,14 @@ def filist_dump(filist):
 def filist_load(doc):
     import yaml
     doc = yaml.load(doc)
-
     common = doc['common']
     username, groupname = common['username'], common['groupname']
-    filemode, dirmode = int(common['filemode'], 8), int(common['dirmode'], 8)
+    common['filemode'] = int(common['filemode'], 8)
+    common['dirmode'] = int(common['dirmode'], 8)
 
     for filepath, fi in doc['filelist'].iteritems():
         fi['path'] = filepath
-        if 'user' not in fi: fi['user'] = username
-        if 'group' not in fi: fi['group'] = groupname
         fi['type'] = reversed_map(filetype_map, fi['type'])
-
-        if 'mode' not in fi:
-            if fi['type'] in (stat.S_IFREG, stat.S_IFLNK):
-                fi['mode'] = filemode
-            elif fi['type'] == stat.S_IFDIR:
-                fi['mode'] = dirmode
-        else:
+        if 'mode' in fi:
             fi['mode'] = int(fi['mode'], 8)
-        yield fi
-
-# TODO: record lnk in meta file
-def gen_dir_desc(dirname, partten=None):
-    filist = listdir(dirname, partten)
-    username, groupname, filemode, dirmode = stat_dir(filist)
-    files, dirs = {}, {}
-    for fi in filist:
-        st = fi[2]
-        if stat.S_ISREG(st) or stat.S_ISLNK(st):
-            files[fi[0]] = gen_file_desc(
-                path.join(dirname, fi[0]), username, groupname, filemode)
-        elif stat.S_ISDIR(st):
-            fstat = {}
-            if stat.S_IMODE(st) != dirmode:
-                fstat['mode'] = st
-            dirs[fi[0]] = fstat
-    return {
-        'common': {
-            'username': username,
-            'groupname': groupname,
-            'filemode': filemode,
-            'dirmode': dirmode},
-        'dirlist': dirs,
-        'filelist': files}
-
-def gen_desc(filepath, partten=None):
-    st = os.stat(filepath)
-    if stat.S_ISREG(st.st_mode):
-        return gen_file_desc(filepath)
-    elif stat.S_ISDIR(st.st_mode):
-        return gen_dir_desc(filepath, partten)
+    return doc
