@@ -82,7 +82,9 @@ class ProcessChannel(object):
 
     def read(self, n):
         try:
-            return self.p.stdout.read(n)
+            d = self.p.stdout.read(n)
+            if not d: raise EOFError()
+            return d
         except:
             print self.p.stderr.read()
             raise
@@ -179,7 +181,7 @@ class Remote(object):
 
     def __init__(self, chan):
         self.chan = chan
-        self.g, self.fmaps = {}, {}
+        self.g, self.fmaps, self.mc = {}, {}, set()
 
         basedir = path.dirname(__file__)
         with open(path.join(basedir, 'remote.py'), 'r') as fi:
@@ -311,6 +313,11 @@ class Remote(object):
         if m.__name__ == '__main__':
             self.execute(inspect.getsource(m))
         else:
-            self.execute('import ' + m.__name__)
+            self.import_module(m.__name__)
             fname = m.__name__ + '.' + fname
         return fname
+
+    def import_module(self, name):
+        if name in self.mc: return
+        self.execute('import ' + name)
+        self.mc.add(name)
