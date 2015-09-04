@@ -26,32 +26,45 @@ def listdesc(dirname):
             desc['hostname'] = hostname
         yield desc
 
+def get_syncinfo(syncinfo):
+    rmtpath = syncinfo['remote']
+    if rmtpath.startswith('~'):
+        rmtpath = rmt.apply(path.expanduser, rmtpath)
+
+    partten = None
+    if '*' in rmtpath:
+        partten, rmtpath = path.basename(rmtpath), path.dirname(rmtpath)
+        logging.info('rmt: %s, partten: %s' % (rmtpath, partten))
+        if '*' in rmtpath:
+            raise Exception('match just allow in last level.')
+
+    local = syncinfo.get('local') or rmtpath
+    if local.startswith(path.sep):
+        local = local[1:]
+    local = path.join(desc['hostname'], local)
+
+    return rmtpath, local, partten
+
 def sync_desc(desc):
     ChanCls = type('C', (remote.SshSudoChannel, remote.BinaryEncoding), {})
     with remote.Remote(ChanCls(desc['hostname'])) as rmt:
+        filist = []
         for syncinfo in desc['synclist']:
-            remote = syncinfo['remote']
-            if remote.startswith('~'):
-                remote = rmt.apply(path.expanduser, remote)
-
-            partten = None
-            if '*' in remote:
-                partten, remote = path.basename(remote), path.dirname(remote)
-                logging.info('rmt: %s, partten: %s' % (remote, partten))
-                if '*' in remote:
-                    raise Exception('match just allow in last level.')
-
-            local = syncinfo.get('local') or remote
-            if local.startswith(path.sep):
-                local = local[1:]
-            local = path.join(desc['hostname'], local)
-
+            rmtpath, local, partten = get_syncinfo(syncinfo)
             if '-b' in optdict:
-                sync.sync_back(
-                    rmt, remote, local, syncinfo.get('recurse', True), partten)
+                filist.extend(
+                    sync.sync_back(rmt, rmtpath, local, partten))
             else:
-                sync.sync_to(
-                    rmt, remote, local, syncinfo.get('recurse', True), partten)
+                sync.sync_to(rmt, rmtpath, local, partten)
+
+    if '-b' in optdict:
+        sync.write_down_meta(desc['hostname'], filist)
+        with open('%s.meta' % desc['hostname'], 'wb') as fo:
+            fo.write(api.filist_dump(filist))
+    else:
+        with open('%s.meta' % desc['hostname'], 'rb') as fi:
+            filist = api.filist_load(fi.read())
+        sync.apply_meta()
 
 def main():
     '''
