@@ -14,6 +14,8 @@ from os import path
 import yaml
 import api
 
+# TODO: 目录的来回同步
+
 def reloca_path(filepath, origbase, newbase):
     rpath = path.relpath(filepath, origbase)
     if rpath == '.':

@@ -2,7 +2,7 @@
 
 [Chinese README](README.zh.md)
 
-# How to use
+## How to use
 
 try this:
 
@@ -12,7 +12,7 @@ it will return all your packages start with 'python' in machine 'hostname'.
 
 Attention: hostname should be a debian/ubuntu. cause get_dpkg, as it named, are gather information from dpkg -l.
 
-# more example
+## more example
 
 try this:
 
@@ -25,7 +25,7 @@ it will print all infomation about remote machine.
 * -m for machine list, -f(file) or -c(stdin) also can be use.
 * hwinfo.all_info is a program in hwinfo.py. it will collect all infomation about remote machine.
 
-# How it works
+## How it works
 
 1. Run bootstrap code in a python instance. The bootstrap code will read stdin, unmarshal it, compile, and run.
 2. Sent core.py from stdin.
@@ -35,7 +35,7 @@ it will print all infomation about remote machine.
 * import is hooked. every time you try to import some module. main.py will find it, and send it to core.py. And it will be loaded as native module.
 * C extension are send as binary file. When you wanna use C extension, server and client must in same arch.
 
-# How developer use it
+## How developer use it
 
     chancls = type('C', (local.SshChannel, local.BinaryEncoding), {})
     with chancls(hostname) as h:
@@ -54,6 +54,10 @@ execute accept a sequence of statements, but just return None.
 single accept a single interactive statement. print every thing other than None.
 
 You can get more information from [python doc](https://docs.python.org/2/library/functions.html#compile).
+
+# sync
+
+A sync system based on project 'run it remote'. It can sync file, read/write privilege and owner. Mostly used in config files.
 
 # License
 
