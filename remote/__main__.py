@@ -13,6 +13,17 @@ import logging
 import traceback
 import local
 
+def initlog(lv, logfile=None):
+    rootlog = logging.getLogger()
+    if logfile: handler = logging.FileHandler(logfile)
+    else: handler = logging.StreamHandler()
+    handler.setFormatter(
+        logging.Formatter(
+            '%(asctime)s,%(msecs)03d [%(levelname)s] <%(name)s>: %(message)s',
+            '%H:%M:%S'))
+    rootlog.addHandler(handler)
+    rootlog.setLevel(lv)
+
 def parallel_map_t(func, it, concurrent=20):
     from multiprocessing.pool import ThreadPool
     pool = ThreadPool(concurrent)
@@ -75,9 +86,12 @@ def prepare_modules(rmt, command):
     rmt.execute('import ' + module_name)
 
 def run_eval_host(ChanCls):
+    args = {}
+    if '-l' in optdict:
+        args['loglevel'] = optdict['-l'].upper()
     def inner(host):
-        with local.Remote(ChanCls(host)) as rmt:
-            for command in args:
+        with local.Remote(ChanCls(host), args=args) as rmt:
+            for command in commands:
                 prepare_modules(rmt, command)
                 result = rmt.eval(command)
                 result = json.dumps(result)
@@ -88,9 +102,12 @@ def run_eval_host(ChanCls):
     return inner
 
 def run_single_host(ChanCls):
+    args = {}
+    if '-l' in optdict:
+        args['loglevel'] = optdict['-l'].upper()
     def inner(host):
-        with local.Remote(ChanCls(host)) as rmt:
-            for command in args:
+        with local.Remote(ChanCls(host), args=args) as rmt:
+            for command in commands:
                 print '-----%s output: %s-----' % (host, command)
                 rmt.single(command)
     return inner
@@ -100,6 +117,7 @@ def main():
     -c: input hostlist from stdin.
     -f: input hostlist from file.
     -j: dump result as json mode.
+    -L: log file.
     -l: log level.
     -h: help, you just seen.
     -M: print with hostname.
@@ -110,15 +128,17 @@ def main():
     -x: eval mode. normally run in single mode.
     '''
     global optdict
-    global args
-    optlist, args = getopt.getopt(sys.argv[1:], 'cf:jl:hMm:n:p:sx')
+    global commands
+    optlist, commands = getopt.getopt(sys.argv[1:], 'cf:jL:l:hMm:n:p:sx')
     optdict = dict(optlist)
     if '-h' in optdict:
         print main.__doc__
         return
 
-    if '-l' in optdict:
-        logging.basicConfig(level=optdict['-l'].upper())
+    loglevel = optdict.get('-l') or 'WARNING'
+    loglevel = loglevel.upper()
+    logfile = optdict.get('-L')
+    initlog(loglevel, logfile)
 
     hostlist = parse_hostlist()
     if hostlist is None:

@@ -48,9 +48,9 @@ class Base64Encoding(object):
 
     BOOTSTRAP = '''import sys, zlib, base64, struct, marshal; l = struct.unpack('>I', base64.b64decode(sys.stdin.read(8)))[0]; o = marshal.loads(zlib.decompress(base64.b64decode(sys.stdin.read(l)))); exec compile(o, '<remote>', 'exec')'''
 
-    def translate_remote(self, d):
-        return d.replace('StdChannel, BinaryEncoding', 'StdChannel, Base64Encoding')
-    
+    def get_args(self):
+        return {'protocol': 'Base64Encoding'}
+
     def send(self, o):
         show_msg('send', o)
         d = base64.b64encode(zlib.compress(marshal.dumps(o), 9))
@@ -179,15 +179,24 @@ class PSshSudoChannel(ParamikoChannel):
 
 class Remote(object):
 
-    def __init__(self, chan):
+    def __init__(self, chan, args=None):
         self.chan = chan
-        self.g, self.fmaps, self.mc = {}, {}, set()
+        self.g = {}
+        self.fmaps = {}
+        self.mc = set()
+        self.args = args if args is not None else {}
+        self.send_remote_core()
+
+    def send_remote_core(self):
+        kw = self.args.copy()
+        if hasattr(self.chan, 'get_args'):
+            kw.update(self.chan.get_args())
 
         basedir = path.dirname(__file__)
         with open(path.join(basedir, 'remote.py'), 'r') as fi:
             d = fi.read()
-        if hasattr(self.chan, 'translate_remote'):
-            d = self.chan.translate_remote(d)
+        d = d.replace('None # replace Parameter here.', str(kw))
+
         self.chan.send(d)
         self.loop()
 

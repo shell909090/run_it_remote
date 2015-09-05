@@ -8,6 +8,8 @@
 '''
 import os, sys, imp, zlib, struct, marshal, logging
 
+Args = None # replace Parameter here.
+
 def add_module(name):
     if name not in sys.modules:
         sys.modules[name] = imp.new_module(name)
@@ -234,21 +236,17 @@ def initlog():
     handler = logging.StreamHandler(sys.stdout)
     handler.setFormatter(
         logging.Formatter(
-            '%(asctime)s,%(msecs)03d %(name)s[%(levelname)s]: %(message)s',
+            '%(asctime)s,%(msecs)03d [%(levelname)s] <remote,%(name)s>: %(message)s',
             '%H:%M:%S'))
     rootlog.addHandler(handler)
-    # FIXME: loglevel
-    rootlog.setLevel('DEBUG')
+    if 'loglevel' in Args:
+        rootlog.setLevel(Args['loglevel'])
 
 def main():
-    import getopt
-    optlist, args = getopt.getopt(sys.argv[1:], 'hn:')
-    optdict = dict(optlist)
-    if '-h' in optdict:
-        print main.__doc__
-        return
-
-    channel = type('C', (StdChannel, BinaryEncoding), {})()
+    protocol = BinaryEncoding
+    if 'protocol' in Args:
+        protocol = globals().get(Args['protocol'])
+    channel = type('C', (StdChannel, protocol), {})()
     remote = Remote(channel)
 
     sys.modules['remote.remote'] = __import__(__name__)
@@ -256,6 +254,7 @@ def main():
     sys.stdout = remote.getstd('stdout')
     initlog()
     channel.send(['result', None])
+
     remote.loop()
 
 if __name__ == '__main__': main()
