@@ -98,7 +98,7 @@ def walkdir(basedir, start=None, partten=None):
                 if not fnmatch.fnmatch(rpath, partten):
                     continue
             fi = gen_fileinfo(filepath, start)
-            if fi['size'] > MAX_SYNC_SIZE:
+            if 'size' in fi and fi['size'] > MAX_SYNC_SIZE:
                 logging.error('file %s size %d out of limit' % (localpath, fi['size']))
                 continue # pass
             if fi: filist.append(fi)
