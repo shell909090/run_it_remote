@@ -85,6 +85,16 @@ def prepare_modules(rmt, command):
     module_name = funcname.rsplit('.', 1)[0]
     rmt.execute('import ' + module_name)
 
+def retry(func, times):
+    def inner(host):
+        for i in xrange(times):
+            try:
+                return func(host)
+            except Exception as err:
+                continue
+        raise
+    return inner
+
 def run_eval_host(ChanCls):
     args = {}
     if '-l' in optdict:
@@ -99,6 +109,8 @@ def run_eval_host(ChanCls):
                     print '%s: %s' % (host, result)
                 else:
                     print result
+    if '-r' in optdict:
+        return retry(inner, int(optdict['-r']))
     return inner
 
 def run_single_host(ChanCls):
@@ -110,6 +122,8 @@ def run_single_host(ChanCls):
             for command in commands:
                 print '-----%s output: %s-----' % (host, command)
                 rmt.single(command)
+    if '-r' in optdict:
+        return retry(inner, int(optdict['-r']))
     return inner
 
 def main():
@@ -124,12 +138,13 @@ def main():
     -m: host list as parameter.
     -n: channel mode, can be local, ssh or sudo, pssh or psudo. ssh is default.
     -p: protocol mode, binary or base64, or other class. binary is default.
+    -r: retry times.
     -s: run in serial mode.
     -x: eval mode. normally run in single mode.
     '''
     global optdict
     global commands
-    optlist, commands = getopt.getopt(sys.argv[1:], 'cf:jL:l:hMm:n:p:sx')
+    optlist, commands = getopt.getopt(sys.argv[1:], 'cf:jL:l:hMm:n:p:r:sx')
     optdict = dict(optlist)
     if '-h' in optdict:
         print main.__doc__
