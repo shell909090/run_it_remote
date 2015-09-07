@@ -195,7 +195,8 @@ class Remote(object):
         basedir = path.dirname(__file__)
         with open(path.join(basedir, 'remote.py'), 'r') as fi:
             d = fi.read()
-        d = d.replace('None # replace Parameter here.', str(kw))
+        logging.debug('kw: %s' % str(kw))
+        d = d.replace('{} # replace Parameter here.', str(kw))
 
         self.chan.send(d)
         self.loop()
@@ -272,7 +273,8 @@ class Remote(object):
             self.chan.send(r)
         except ImportError: self.chan.send(None)
 
-    def on_except(self, err):
+    def on_except(self, err, exc):
+        logging.error(''.join(exc))
         raise Exception(err)
 
     def enable_aes(self):

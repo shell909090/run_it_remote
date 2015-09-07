@@ -8,7 +8,7 @@
 '''
 import os, sys, imp, zlib, struct, marshal, logging
 
-Args = None # replace Parameter here.
+Args = {} # replace Parameter here.
 
 def add_module(name):
     if name not in sys.modules:
@@ -255,6 +255,10 @@ def main():
     initlog()
     channel.send(['result', None])
 
-    remote.loop()
+    try:
+        remote.loop()
+    except Exception as err:
+        import traceback
+        channel.send(['except', str(err), traceback.format_exc()])
 
 if __name__ == '__main__': main()
