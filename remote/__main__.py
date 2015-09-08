@@ -120,7 +120,6 @@ def run_single_host(ChanCls):
     def inner(host):
         with local.Remote(ChanCls(host), args=args) as rmt:
             for command in commands:
-                print '-----%s output: %s-----' % (host, command)
                 rmt.single(command)
     if '-r' in optdict:
         return retry(inner, int(optdict['-r']))
