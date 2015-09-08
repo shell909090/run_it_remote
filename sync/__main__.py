@@ -86,8 +86,12 @@ def merge_ready2run(r2r):
 
 def sync_desc(desc):
     import yaml
+    args = {}
+    if '-l' in optdict:
+        args['loglevel'] = optdict['-l'].upper()
+
     ChanCls = type('C', (remote.SshSudoChannel, remote.BinaryEncoding), {})
-    with remote.Remote(ChanCls(desc['hostname'])) as rmt:
+    with remote.Remote(ChanCls(desc['hostname']), args=args) as rmt:
         filist, ready2run = [], []
 
         if '-t' in optdict:

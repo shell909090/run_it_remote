@@ -57,7 +57,7 @@ def get_groupname(gid):
 
 @memorized
 def get_groupid(groupname):
-    return grp.getgrnam(groupname).pw_gid
+    return grp.getgrnam(groupname).gr_gid
 
 def gen_md5hash(filepath):
     try:

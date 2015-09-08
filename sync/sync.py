@@ -87,7 +87,7 @@ def apply_meta(filist):
         logging.info('chmod %s %s', fi['path'], oct(mode))
         os.chmod(fi['path'], mode)
         uid = api.get_userid(fi['user'])
-        gid = api.get_userid(fi['group'])
+        gid = api.get_groupid(fi['group'])
         logging.info('chown %s %d %d', fi['path'], uid, gid)
         os.lchown(fi['path'], uid, gid)
 
