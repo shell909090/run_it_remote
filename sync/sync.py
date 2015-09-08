@@ -63,7 +63,7 @@ def sync_back(rmt, remote, local, partten=None):
         for rmtpath, localpath in f2sync:
             data = rmt.apply(api.read_file, rmtpath)
             api.write_file(localpath, data)
-    return filist
+    return filist, f2sync
 
 def sync_to(rmt, remote, local, partten=None):
     logging.warning('sync %s to %s in %s' % (local, remote, str(rmt)))
@@ -79,7 +79,7 @@ def sync_to(rmt, remote, local, partten=None):
         for localpath, rmtpath in f2sync:
             data = api.read_file(localpath)
             rmt.apply(api.write_file, data)
-    return filist
+    return filist, f2sync
 
 def apply_meta(filist):
     for fi in filist:
@@ -90,3 +90,8 @@ def apply_meta(filist):
         gid = api.get_userid(fi['group'])
         logging.info('chown %s %d %d', fi['path'], uid, gid)
         os.lchown(fi['path'], uid, gid)
+
+def run_commands(cmds):
+    for cmd in cmds:
+        logging.warning('run: %s', cmd)
+        os.system(cmd)

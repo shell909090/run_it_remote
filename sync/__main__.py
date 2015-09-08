@@ -73,24 +73,40 @@ def cache_default_attr(attrs):
         'group': common['groupname'],
         'mode': common['dirmode']}
 
+def merge_ready2run(r2r):
+    for syncinfo in r2r:
+        if 'run' not in syncinfo:
+            continue
+        run = syncinfo['run']
+        if isinstance(run, basestring):
+            yield run
+        if hasattr(run, '__iter__'):
+            for i in run:
+                yield i
+
 def sync_desc(desc):
     import yaml
     ChanCls = type('C', (remote.SshSudoChannel, remote.BinaryEncoding), {})
     with remote.Remote(ChanCls(desc['hostname'])) as rmt:
-        filist = []
+        filist, ready2run = [], []
+
         if '-t' in optdict:
             with open('%s.meta' % desc['hostname'], 'rb') as fi:
                 attrs = api.filist_load(fi.read())
             cache_default_attr(attrs)
+
         for syncinfo in desc['synclist']:
             rmtpath, local, partten = get_syncinfo(rmt, desc, syncinfo)
             if '-b' in optdict:
-                filist.extend(
-                    sync.sync_back(rmt, rmtpath, local, partten))
+                fl, f2sync = sync.sync_back(rmt, rmtpath, local, partten)
+                filist.extend(fl)
             else:
-                fl = sync.sync_to(rmt, rmtpath, local, partten)
+                fl, f2sync = sync.sync_to(rmt, rmtpath, local, partten)
+                if f2sync:
+                    ready2run.append(syncinfo)
                 fl = list(merge_filist(fl, attrs, rmtpath, local))
                 filist.extend(fl)
+
         if '-b' in optdict:
             doc = api.filist_dump(
                 filist, desc.get('user'), desc.get('group'),
@@ -99,6 +115,8 @@ def sync_desc(desc):
                 fo.write(doc)
         else:
             rmt.apply(sync.apply_meta, filist)
+            cmds = list(merge_ready2run(ready2run))
+            rmt.apply(sync.run_commands, cmds)
 
 def main():
     '''
