@@ -39,6 +39,9 @@ class BaseEncoding(object):
     def close(self):
         self.chan.close()
 
+    def __repr__(self):
+        return str(self.chan)
+
     def get_args(self):
         args = {}
         if hasattr(self.chan, 'get_args'):

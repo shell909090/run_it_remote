@@ -241,6 +241,7 @@ class StdChannel(object):
         return self.stdin.read(n)
 
 def main():
+    global rmt
     protcls = BinaryEncoding
     if 'protocol' in Args:
         protcls = globals().get(Args['protocol'])

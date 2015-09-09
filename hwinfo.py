@@ -29,6 +29,12 @@ def split_reader(src, sep, keys, stopblank=False):
         if k.lower() in keys:
             yield k, v
 
+def filter_line(line):
+    if not line: return
+    if line.startswith('Handle') or line[0] in ' \t':
+        return
+    return line.strip()
+
 DMI_INFO = {
     'System Information': set(['serial number', 'uuid']),
     'Base Board Information': set(['product name', 'version', 'serial number']),
@@ -42,16 +48,11 @@ def dmidecode():
         raise exc_info[0], exc_info[1], exc_info[2]
 
     for line in src:
+        line = filter_line(line)
         if not line: continue
-        if line.startswith('Handle') or line[0] in ' \t':
+        if line not in DMI_INFO:
             continue
-        line = line.strip()
-        if not line: continue
-
-        info = DMI_INFO.get(line)
-        if not info: continue
-
-        r = dict(split_reader(src, ':', info, True))
+        r = dict(split_reader(src, ':', DMI_INFO[line], True))
         if r:
             yield line.split()[0], r
 
