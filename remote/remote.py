@@ -6,7 +6,7 @@
 @copyright: 2015, Shell.Xu <shell909090@gmail.com>
 @license: BSD-3-clause
 '''
-import os, sys, imp, zlib, struct, marshal, logging
+import os, sys, imp, zlib, base64, struct, marshal
 
 Args = {} # replace Parameter here.
 
@@ -91,8 +91,8 @@ class Finder(object):
 
 class ChannelFile(object):
 
-    def __init__(self, channel, id):
-        self.channel, self.id = channel, id
+    def __init__(self, channel, fid):
+        self.channel, self.fid = channel, fid
 
     def __enter__(self):
         return self
@@ -101,20 +101,20 @@ class ChannelFile(object):
         self.close()
 
     def write(self, s):
-        self.channel.send(['write', self.id, s])
+        self.channel.send(['write', self.fid, s])
 
     def read(self, size=-1):
-        self.channel.send(['read', self.id, size])
+        self.channel.send(['read', self.fid, size])
         return self.channel.recv()
 
     def seek(self, offset, whence):
-        self.channel.send(['seek', self.id, offset, whence])
+        self.channel.send(['seek', self.fid, offset, whence])
 
     def flush(self):
-        self.channel.send(['flush', self.id])
+        self.channel.send(['flush', self.fid])
 
     def close(self):
-        self.channel.send(['close', self.id])
+        self.channel.send(['close', self.fid])
 
 class Remote(object):
 
@@ -131,44 +131,43 @@ class Remote(object):
                 r = eval(o[1], self.g)(*o[2:])
             elif o[0] == 'std':
                 r = self.set_std(o[1], o[2])
-            elif o[0] == 'dh':
-                r = self.do_dh(o[1], o[2])
+            # elif o[0] == 'dh':
+            #     r = self.do_dh(o[1], o[2])
             elif o[0] in ('exec', 'eval', 'single'):
                 r = eval(compile(o[1], '<%s>' % o[0], o[0]), self.g)
             self.chan.send(['result', r])
 
-    def do_dh(self, other_key, other_iv):
-        from remote import dh
-        from Crypto.Cipher import AES
+    # def do_dh(self, other_key, other_iv):
+    #     from remote import dh
+    #     from Crypto.Cipher import AES
 
-        # Diffie-Hellman key exchange
-        pri_key, pri_iv = dh.gen_prikey(), dh.gen_prikey()
-        key = dh.gen_key(pri_key, other_key)
-        iv = dh.gen_key(pri_iv, other_iv)
-        self.chan.send(['result', [dh.gen_pubkey(pri_key), dh.gen_pubkey(pri_iv)]])
+    #     # Diffie-Hellman key exchange
+    #     pri_key, pri_iv = dh.gen_prikey(), dh.gen_prikey()
+    #     key = dh.gen_key(pri_key, other_key)
+    #     iv = dh.gen_key(pri_iv, other_iv)
+    #     self.chan.send(['result', [dh.gen_pubkey(pri_key), dh.gen_pubkey(pri_iv)]])
 
-        self.encryptor = AES.new(key, AES.MODE_CBC, IV=iv)
-        self.decryptor = AES.new(key, AES.MODE_CBC, IV=iv)
-        origwrite, origread = self.chan.write, self.chan.read
-        def write(d):
-            return origwrite(self.encryptor.encrypt(d))
-        def read(n):
-            d = origread(n)
-            return self.decryptor.decrypt(d)
-        self.chan.write = write
-        self.chan.read = read
+    #     self.encryptor = AES.new(key, AES.MODE_CBC, IV=iv)
+    #     self.decryptor = AES.new(key, AES.MODE_CBC, IV=iv)
+    #     origwrite, origread = self.chan.write, self.chan.read
+    #     def write(d):
+    #         return origwrite(self.encryptor.encrypt(d))
+    #     def read(n):
+    #         d = origread(n)
+    #         return self.decryptor.decrypt(d)
+    #     self.chan.write = write
+    #     self.chan.read = read
 
     def open(self, filepath, mode):
         self.chan.send(['open', filepath, mode])
         r = self.chan.recv()
         return ChannelFile(self, r)
 
-    def set_std(self, which, id):
-        f = ChannelFile(self.chan, id)
+    def set_std(self, which, fid):
         if which == 'stdout':
-            sys.stdout = f
+            sys.stdout = ChannelFile(self.chan, fid)
         elif which == 'stderr':
-            sys.stderr = f
+            sys.stderr = ChannelFile(self.chan, fid)
 
     def eval(self, f):
         self.chan.send(['eval', f])

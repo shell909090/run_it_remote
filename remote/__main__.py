@@ -6,12 +6,15 @@
 @copyright: 2015, Shell.Xu <shell909090@gmail.com>
 @license: BSD-3-clause
 '''
-import os, sys
-import json
+import sys
 import getopt
 import logging
 import traceback
 import local
+import chan
+
+optdict = {}
+commands = []
 
 def initlog(lv, logfile=None):
     rootlog = logging.getLogger()
@@ -30,7 +33,7 @@ def parallel_map_t(func, it, concurrent=20):
     def wrapper(i):
         try:
             return func(i)
-        except Exception as err:
+        except:
             print traceback.format_exc()
     for i in it:
         pool.apply_async(wrapper, (i,))
@@ -48,20 +51,20 @@ def name2obj(name):
 
 def parse_channel():
     if '-n' not in optdict or optdict['-n'] == 'ssh':
-        return local.SshChannel
+        return chan.SshChannel
     if optdict['-n'] == 'sudo':
-        return local.SshSudoChannel
+        return chan.SshSudoChannel
     if optdict['-n'] == 'pssh':
-        return local.PSshChannel
+        return chan.PSshChannel
     if optdict['-n'] == 'psudo':
-        return local.PSshSudoChannel
+        return chan.PSshSudoChannel
     return name2obj(optdict['-n'])
 
 def parse_protocol():
     if '-p' not in optdict or optdict['-p'] == 'binary':
-        return local.BinaryEncoding
+        return chan.BinaryEncoding
     if optdict['-p'] == 'base64':
-        return local.Base64Encoding
+        return chan.Base64Encoding
     return name2obj(optdict['-p'])
 
 def parse_hostlist():
@@ -90,7 +93,7 @@ def retry(func, times):
         for i in xrange(times):
             try:
                 return func(host)
-            except Exception as err:
+            except:
                 continue
         raise
     return inner
