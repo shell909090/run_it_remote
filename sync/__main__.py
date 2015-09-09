@@ -13,7 +13,7 @@ import getopt
 import logging
 from os import path
 import yaml
-import remote, remote.__main__
+import remote
 import api
 import metafile
 import sync
@@ -96,8 +96,9 @@ def merge_ready2run(r2r):
                 yield i
 
 def sync_desc_back(desc):
-    ChanCls = type('C', (remote.SshSudoChannel, remote.BinaryEncoding), {})
-    with remote.Remote(ChanCls(desc['hostname'])) as rmt:
+    with remote.Remote(
+            remote.SshSudoChannel, remote.BinaryEncoding,
+            desc['hostname']) as rmt:
         if '-l' in optdict:
             rmt.monkeypatch_logging(optdict['-l'])
         allfilist = []
@@ -119,8 +120,9 @@ def sync_desc_back(desc):
             fo.write(doc)
 
 def sync_desc_to(desc):
-    ChanCls = type('C', (remote.SshSudoChannel, remote.BinaryEncoding), {})
-    with remote.Remote(ChanCls(desc['hostname'])) as rmt:
+    with remote.Remote(
+            remote.SshSudoChannel, remote.BinaryEncoding,
+            desc['hostname']) as rmt:
         if '-l' in optdict:
             rmt.monkeypatch_logging(optdict['-l'])
         allfilist, ready2run = [], []
@@ -182,6 +184,6 @@ def main():
         sync_desc = sync_desc_back
     else:
         sync_desc = sync_desc_to
-    remote.__main__.parallel_map_t(sync_desc, desces)
+    remote.parallel_map_t(sync_desc, desces)
 
 if __name__ == '__main__': main()

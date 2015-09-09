@@ -45,7 +45,7 @@ def chk4dir(dirname):
 def chk4file(localpath, fi):
     st = os.lstat(localpath)
     if not stat.S_ISREG(st.st_mode):
-        logging.error('remote file to local non-file %s', local)
+        logging.error('remote file to local non-file %s', localpath)
         return True
     if st.st_size == fi['size'] and api.gen_md5hash(localpath) == fi['md5']:
         return True # done

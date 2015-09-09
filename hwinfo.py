@@ -19,6 +19,7 @@ def check_output(x):
 
 def split_reader(src, sep, keys, stopblank=False):
     for line in src:
+        line = line.strip()
         if stopblank and not line:
             return
         r = line.split(sep, 1)
@@ -29,32 +30,30 @@ def split_reader(src, sep, keys, stopblank=False):
             yield k, v
 
 DMI_INFO = {
-    'system': set(['serial number', 'uuid']),
-    'base': set(['product name', 'version', 'serial number']),
-    'processor': set(['id', 'version']),
-    'memory': set([
-        'size', 'locator', 'speed', 'manufacturer', 'serial number',
-        'asset tag', 'part number', 'configured'])}
+    'System Information': set(['serial number', 'uuid']),
+    'Base Board Information': set(['product name', 'version', 'serial number']),
+    'Processor Information': set(['id', 'version']),
+    'Memory Device': set(['size', 'speed', 'manufacturer', 'serial number', 'part number'])}
 def dmidecode():
     try: src = iter(check_output(['dmidecode',]))
     except:
         exc_info = sys.exc_info()
         yield 'Base', 'error'
         raise exc_info[0], exc_info[1], exc_info[2]
+
     for line in src:
-        if not line or line.startswith('Handle'):
+        if not line: continue
+        if line.startswith('Handle') or line[0] in ' \t':
             continue
-        # FIXME: Error here
-        name = line.split()[0]
-        info = DMI_INFO.get(name.lower())
-        if not info:
-            continue
+        line = line.strip()
+        if not line: continue
+
+        info = DMI_INFO.get(line)
+        if not info: continue
+
         r = dict(split_reader(src, ':', info, True))
-        if not r:
-            continue
-        if name == 'Memory' and not r.get('Serial Number'):
-            continue
-        yield name, r
+        if r:
+            yield line.split()[0], r
 
 SMART_INFO = ['vendor', 'model family', 'product', 'device model', 
               'user capacity', 'logical block size', 'serial number']

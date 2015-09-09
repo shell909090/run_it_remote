@@ -8,3 +8,6 @@
 '''
 from chan import *
 from local import *
+from encoding import *
+from chan import *
+from __main__ import parallel_map_t
