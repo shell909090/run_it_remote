@@ -20,6 +20,12 @@ def remote_initlog(loglevel, fmt):
     if loglevel:
         rootlog.setLevel(loglevel)
 
+def autoset_loglevel(rmt):
+    root = logging.getLogger('')
+    loglevel = root.getEffectiveLevel()
+    if loglevel != logging.WARNING:
+        rmt.monkeypatch_logging(loglevel)
+
 class Remote(object):
 
     def __init__(self, chancls, protcls, host,
@@ -197,4 +203,6 @@ class Remote(object):
     LOG_FMT = '%(asctime)s,%(msecs)03d [%(levelname)s] <remote,%(name)s>: %(message)s'
     def monkeypatch_logging(self, loglevel='INFO', fmt=None):
         if not fmt: fmt = self.LOG_FMT
-        self.apply(remote_initlog, loglevel.upper(), fmt)
+        if isinstance(loglevel, basestring):
+            loglevel = loglevel.upper()
+        self.apply(remote_initlog, loglevel, fmt)

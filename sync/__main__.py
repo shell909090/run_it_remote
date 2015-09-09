@@ -8,7 +8,6 @@
 '''
 import os
 import sys
-import stat
 import getopt
 import logging
 from os import path

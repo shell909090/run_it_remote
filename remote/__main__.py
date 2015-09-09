@@ -102,8 +102,7 @@ def retry(func, times):
 def run_single_host(chancls, protcls):
     def inner(host):
         with local.Remote(chancls, protcls, host) as rmt:
-            if '-l' in optdict:
-                rmt.monkeypatch_logging(optdict['-l'])
+            local.autoset_loglevel(rmt)
             for command in commands:
                 rmt.single(command)
     if '-r' in optdict:

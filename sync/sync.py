@@ -180,8 +180,7 @@ def sync_desc_back(desc):
     with remote.Remote(
             remote.SshSudoChannel, remote.BinaryEncoding,
             desc['hostname']) as rmt:
-        if '-l' in __main__.optdict:
-            rmt.monkeypatch_logging(__main__.optdict['-l'])
+        remote.autoset_loglevel(rmt)
         allfilist = []
 
         for syncinfo in desc['synclist']:
@@ -204,8 +203,7 @@ def sync_desc_to(desc):
     with remote.Remote(
             remote.SshSudoChannel, remote.BinaryEncoding,
             desc['hostname']) as rmt:
-        if '-l' in __main__.optdict:
-            rmt.monkeypatch_logging(__main__.optdict['-l'])
+        remote.autoset_loglevel(rmt)
         allfilist, ready2run = [], []
 
         with open('%s.meta' % desc['hostname'], 'rb') as fi:
