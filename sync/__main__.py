@@ -19,7 +19,6 @@ import metafile
 import sync
 
 optdict = {}
-args = []
 
 def limit_attr(fi, attrs):
     rslt = {}
@@ -145,6 +144,16 @@ def sync_desc_to(desc):
         cmds = list(merge_ready2run(ready2run))
         rmt.apply(sync.run_commands, cmds)
 
+def get_desces():
+    machine_allow = []
+    if '-m' in optdict:
+        machine_allow = optdict['-m'].split(',')
+    for desc in listdesc('.'):
+        if not desc['synclist']: continue
+        if machine_allow and desc['hostname'] not in machine_allow:
+            continue
+        yield desc
+
 def main():
     '''
     -b: sync back.
@@ -154,8 +163,7 @@ def main():
     -t: sync to.
     '''
     global optdict
-    global args
-    optlist, args = getopt.getopt(sys.argv[1:], 'bl:hm:t')
+    optlist, _ = getopt.getopt(sys.argv[1:], 'bl:hm:t')
     optdict = dict(optlist)
     if '-h' in optdict:
         print main.__doc__
@@ -168,17 +176,7 @@ def main():
         print 'you must set sync back or sync to.'
         return
 
-    machine_allow = []
-    if '-m' in optdict:
-        machine_allow = optdict['-m'].split(',')
-
-    desces = []
-    for dirname in args:
-        for desc in listdesc(dirname):
-            if not desc['synclist']: continue
-            if machine_allow and desc['hostname'] not in machine_allow:
-                continue
-            desces.append(desc)
+    desces = get_desces()
 
     if '-b' in optdict:
         sync_desc = sync_desc_back

@@ -36,31 +36,38 @@ def sync_dir(filist, remote, local):
         else:
             os.makedirs(localpath)
 
-def chk4file(filist, remote, local):
+def chk4dir(dirname):
+    if path.exists(dirname): # link is ok.
+        return
+    logging.info('create dir %s', dirname)
+    os.makedirs(dirname)
+
+def chk4file(localpath, fi):
+    st = os.lstat(localpath)
+    if not stat.S_ISREG(st.st_mode):
+        logging.error('remote file to local non-file %s', local)
+        return True
+    if st.st_size == fi['size'] and api.gen_md5hash(localpath) == fi['md5']:
+        return True # done
+
+def chk4files(filist, remote, local):
     f2sync = []
     for fi in filist:
         if fi['type'] != stat.S_IFREG: continue
         localpath = reloca_path(fi['path'], remote, local)
 
         if path.lexists(localpath): # link is not ok.
-            st = os.lstat(localpath)
-            if not stat.S_ISREG(st.st_mode):
-                logging.error('remote file to local non-file %s', local)
+            if chk4file(localpath, fi):
                 continue
-            if st.st_size == fi['size'] and api.gen_md5hash(localpath) == fi['md5']:
-                continue # done
 
         # if base dir not exist, create it first.
-        dirname = path.dirname(localpath)
-        if not path.exists(dirname): # link is ok.
-            logging.info('create dir %s', dirname)
-            os.makedirs(dirname)
+        chk4dir(path.dirname(localpath))
 
         f2sync.append((fi['path'], localpath))
     return f2sync
 
 def sync_file_back(rmt, remote, local, filist):
-    f2sync = chk4file(filist, remote, local)
+    f2sync = chk4files(filist, remote, local)
     try:
         datas = rmt.apply(api.read_files, [f[0] for f in f2sync])
         api.write_files(zip([f[1] for f in f2sync], datas))
@@ -74,7 +81,7 @@ def sync_file_back(rmt, remote, local, filist):
     return f2sync
 
 def sync_file_to(rmt, remote, local, filist):
-    f2sync = rmt.apply(chk4file, filist, local, remote)
+    f2sync = rmt.apply(chk4files, filist, local, remote)
     try:
         datas = api.read_files([f[0] for f in f2sync])
         rmt.apply(api.write_files, zip([f[1] for f in f2sync], datas))

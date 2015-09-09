@@ -15,21 +15,21 @@ import logging
 def show_msg(action, o):
     if o is None:
         logging.debug('%s: none', action)
-    elif isinstance(o, (int, long)):
+        return
+    if isinstance(o, (int, long)):
         logging.debug('%s int: %d', action, o)
-    elif isinstance(o, list):
+        return
+    if isinstance(o, list):
         d = str(o)
-        if len(d) < 200:
-            logging.debug('%s: %s', action, d)
-        else:
-            logging.debug('%s: too long', action)
     elif isinstance(o, basestring):
-        if len(o) < 200:
-            logging.debug('%s str: %s', action, o)
-        else:
-            logging.debug('%s str: too long', action)
+        d = o
     else:
         logging.debug('%s: unknown', action)
+        return
+    if len(d) >= 200:
+        logging.debug('%s: too long', action)
+        return
+    logging.debug('%s: %s', action, d)
 
 class BinaryEncoding(object):
 
