@@ -20,12 +20,19 @@ from os import path
 def show_msg(action, o):
     if o is None:
         logging.debug('%s: none', action)
-    elif isinstance(o, list):
-        logging.debug('%s: %s', action, str(o))
     elif isinstance(o, (int, long)):
         logging.debug('%s int: %d', action, o)
+    elif isinstance(o, list):
+        d = str(o)
+        if len(d) < 200:
+            logging.debug('%s: %s', action, d)
+        else:
+            logging.debug('%s: too long', action)
     elif isinstance(o, basestring):
-        logging.debug('%s str: %d', action, len(o))
+        if len(o) < 200:
+            logging.debug('%s str: %s', action, o)
+        else:
+            logging.debug('%s str: too long', action)
     else:
         logging.debug('%s: unknown', action)
 
@@ -177,6 +184,14 @@ class PSshSudoChannel(ParamikoChannel):
     def __repr__(self):
         return self.host
 
+def remote_initlog(loglevel, fmt):
+    rootlog = logging.getLogger()
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setFormatter(logging.Formatter(fmt, '%H:%M:%S'))
+    rootlog.addHandler(handler)
+    if loglevel:
+        rootlog.setLevel(loglevel)
+
 class Remote(object):
 
     def __init__(self, chan, args=None):
@@ -186,6 +201,7 @@ class Remote(object):
         self.mc = set()
         self.args = args if args is not None else {}
         self.send_remote_core()
+        self.monkeypatch_std('stdout')
 
     def send_remote_core(self):
         kw = self.args.copy()
@@ -268,8 +284,9 @@ class Remote(object):
         try:
             r = list(imp.find_module(name, path))
             if r[0] is not None:
-                self.fmaps[id(r[0])] = r[0]
-                r[0] = id(r[0])
+                with r[0]:
+                    d = r[0].read()
+                r[0] = d
             self.chan.send(r)
         except ImportError: self.chan.send(None)
 
@@ -332,3 +349,19 @@ class Remote(object):
         if name in self.mc: return
         self.execute('import ' + name)
         self.mc.add(name)
+
+    def monkeypatch_std(self, which):
+        if which == 'stdout':
+            f = sys.stdout
+        elif which == 'stderr':
+            f = sys.stderr
+        else:
+            raise Exception('unknown std: %s' % which)
+        self.fmaps[id(f)] = f
+        self.chan.send(['std', which, id(f)])
+        return self.loop()
+
+    LOG_FMT = '%(asctime)s,%(msecs)03d [%(levelname)s] <remote,%(name)s>: %(message)s'
+    def monkeypatch_logging(self, loglevel='INFO', fmt=None):
+        if not fmt: fmt = self.LOG_FMT
+        self.apply(remote_initlog, loglevel.upper(), fmt)

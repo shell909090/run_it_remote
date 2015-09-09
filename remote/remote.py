@@ -17,12 +17,10 @@ def add_module(name):
 
 class Loader(object):
 
-    def __init__(self, finder, srcfid, pathname, description):
-        self.finder, self.src = finder, None
-        self.pathname, self.description = pathname, description
-        if srcfid is not None:
-            with ChannelFile(finder.channel, srcfid) as srcfile:
-                self.src = srcfile.read()
+    def __init__(self, finder, src, pathname, description):
+        self.finder, self.src = finder, src
+        self.pathname = pathname
+        self.description = description
 
     def exec_code_module(self, mod):
         exec compile(self.src, self.pathname, 'exec') in mod.__dict__
@@ -131,6 +129,8 @@ class Remote(object):
             if o[0] == 'result': return o[1]
             if o[0] == 'apply':
                 r = eval(o[1], self.g)(*o[2:])
+            elif o[0] == 'std':
+                r = self.set_std(o[1], o[2])
             elif o[0] == 'dh':
                 r = self.do_dh(o[1], o[2])
             elif o[0] in ('exec', 'eval', 'single'):
@@ -163,10 +163,12 @@ class Remote(object):
         r = self.chan.recv()
         return ChannelFile(self, r)
 
-    def getstd(self, which):
-        self.chan.send(['std', which])
-        id = self.chan.recv()
-        return ChannelFile(self.chan, id)
+    def set_std(self, which, id):
+        f = ChannelFile(self.chan, id)
+        if which == 'stdout':
+            sys.stdout = f
+        elif which == 'stderr':
+            sys.stderr = f
 
     def eval(self, f):
         self.chan.send(['eval', f])
@@ -231,17 +233,6 @@ class StdChannel(object):
     def read(self, n):
         return self.stdin.read(n)
 
-def initlog():
-    rootlog = logging.getLogger()
-    handler = logging.StreamHandler(sys.stdout)
-    handler.setFormatter(
-        logging.Formatter(
-            '%(asctime)s,%(msecs)03d [%(levelname)s] <remote,%(name)s>: %(message)s',
-            '%H:%M:%S'))
-    rootlog.addHandler(handler)
-    if 'loglevel' in Args:
-        rootlog.setLevel(Args['loglevel'])
-
 def main():
     protocol = BinaryEncoding
     if 'protocol' in Args:
@@ -251,8 +242,6 @@ def main():
 
     sys.modules['remote.remote'] = __import__(__name__)
     sys.meta_path.append(Finder(channel))
-    sys.stdout = remote.getstd('stdout')
-    initlog()
     channel.send(['result', None])
 
     try:

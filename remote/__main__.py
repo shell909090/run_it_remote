@@ -95,30 +95,11 @@ def retry(func, times):
         raise
     return inner
 
-def run_eval_host(ChanCls):
-    args = {}
-    if '-l' in optdict:
-        args['loglevel'] = optdict['-l'].upper()
-    def inner(host):
-        with local.Remote(ChanCls(host), args=args) as rmt:
-            for command in commands:
-                prepare_modules(rmt, command)
-                result = rmt.eval(command)
-                result = json.dumps(result)
-                if '-M' in optdict:
-                    print '%s: %s' % (host, result)
-                else:
-                    print result
-    if '-r' in optdict:
-        return retry(inner, int(optdict['-r']))
-    return inner
-
 def run_single_host(ChanCls):
-    args = {}
-    if '-l' in optdict:
-        args['loglevel'] = optdict['-l'].upper()
     def inner(host):
-        with local.Remote(ChanCls(host), args=args) as rmt:
+        with local.Remote(ChanCls(host)) as rmt:
+            if '-l' in optdict:
+                rmt.monkeypatch_logging(optdict['-l'])
             for command in commands:
                 rmt.single(command)
     if '-r' in optdict:
@@ -133,17 +114,15 @@ def main():
     -L: log file.
     -l: log level.
     -h: help, you just seen.
-    -M: print with hostname.
     -m: host list as parameter.
     -n: channel mode, can be local, ssh or sudo, pssh or psudo. ssh is default.
     -p: protocol mode, binary or base64, or other class. binary is default.
     -r: retry times.
     -s: run in serial mode.
-    -x: eval mode. normally run in single mode.
     '''
     global optdict
     global commands
-    optlist, commands = getopt.getopt(sys.argv[1:], 'cf:jL:l:hMm:n:p:r:sx')
+    optlist, commands = getopt.getopt(sys.argv[1:], 'cf:jL:l:hm:n:p:r:s')
     optdict = dict(optlist)
     if '-h' in optdict:
         print main.__doc__
@@ -162,11 +141,7 @@ def main():
     protcls = parse_protocol()
     ChanCls = type('C', (chancls, protcls), {})
 
-    if '-x' in optdict:
-        run_host = run_eval_host(ChanCls)
-    else:
-        run_host = run_single_host(ChanCls)
-
+    run_host = run_single_host(ChanCls)
     if '-s' in optdict:
         return map(run_host, hostlist)
     return parallel_map_t(run_host, hostlist)

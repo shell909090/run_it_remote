@@ -12,11 +12,11 @@ import stat
 import getopt
 import logging
 from os import path
+import yaml
 import remote, remote.__main__
 import api, sync
 
 def listdesc(dirname):
-    import yaml
     for filename in os.listdir(dirname):
         if not filename.endswith('.yaml'):
             continue
@@ -84,43 +84,51 @@ def merge_ready2run(r2r):
             for i in run:
                 yield i
 
-def sync_desc(desc):
-    import yaml
-    args = {}
-    if '-l' in optdict:
-        args['loglevel'] = optdict['-l'].upper()
-
+def sync_desc_back(desc):
     ChanCls = type('C', (remote.SshSudoChannel, remote.BinaryEncoding), {})
     with remote.Remote(ChanCls(desc['hostname']), args=args) as rmt:
-        filist, ready2run = [], []
-
-        if '-t' in optdict:
-            with open('%s.meta' % desc['hostname'], 'rb') as fi:
-                attrs = api.filist_load(fi.read())
-            cache_default_attr(attrs)
+        if '-l' in optdict:
+            rmt.monkeypatch_logging(optdict['-l'])
+        allfilist = []
 
         for syncinfo in desc['synclist']:
             rmtpath, local, partten = get_syncinfo(rmt, desc, syncinfo)
-            if '-b' in optdict:
-                fl, f2sync = sync.sync_back(rmt, rmtpath, local, partten)
-                filist.extend(fl)
-            else:
-                fl, f2sync = sync.sync_to(rmt, rmtpath, local, partten)
-                if f2sync:
-                    ready2run.append(syncinfo)
-                fl = list(merge_filist(fl, attrs, rmtpath, local))
-                filist.extend(fl)
+            logging.warning('sync %s in %s to %s.' % (remote, str(rmt), local))
 
-        if '-b' in optdict:
-            doc = api.filist_dump(
-                filist, desc.get('user'), desc.get('group'),
-                desc.get('filemode'), desc.get('dirmode'))
-            with open('%s.meta' % desc['hostname'], 'wb') as fo:
-                fo.write(doc)
-        else:
-            rmt.apply(sync.apply_meta, filist)
-            cmds = list(merge_ready2run(ready2run))
-            rmt.apply(sync.run_commands, cmds)
+            filist = rmt.apply(api.walkdir, remote, None, partten)
+            sync.sync_dir(filist, remote, local)
+            f2sync = sync.sync_file_back(rmt, rmtpath, local, filist)
+            allfilist.extend(filist)
+
+        doc = api.filist_dump(
+            allfilist,
+            desc.get('user'), desc.get('group'),
+            desc.get('filemode'), desc.get('dirmode'))
+        with open('%s.meta' % desc['hostname'], 'wb') as fo:
+            fo.write(doc)
+
+def sync_desc_to(desc):
+    ChanCls = type('C', (remote.SshSudoChannel, remote.BinaryEncoding), {})
+    with remote.Remote(ChanCls(desc['hostname']), args=args) as rmt:
+        if '-l' in optdict:
+            rmt.monkeypatch_logging(optdict['-l'])
+        filist, ready2run = [], []
+
+        with open('%s.meta' % desc['hostname'], 'rb') as fi:
+            attrs = api.filist_load(fi.read())
+        cache_default_attr(attrs)
+
+        for syncinfo in desc['synclist']:
+            rmtpath, local, partten = get_syncinfo(rmt, desc, syncinfo)
+            fl, f2sync = sync.sync_to(rmt, rmtpath, local, partten)
+            if f2sync:
+                ready2run.append(syncinfo)
+            fl = list(merge_filist(fl, attrs, rmtpath, local))
+            filist.extend(fl)
+
+        rmt.apply(sync.apply_meta, filist)
+        cmds = list(merge_ready2run(ready2run))
+        rmt.apply(sync.run_commands, cmds)
 
 def main():
     '''
@@ -157,6 +165,9 @@ def main():
                 continue
             desces.append(desc)
 
-    remote.__main__.parallel_map_t(sync_desc, desces)
+    if '-b' in optdict:
+        remote.__main__.parallel_map_t(sync_desc_back, desces)
+    else:
+        remote.__main__.parallel_map_t(sync_desc_to, desces)
 
 if __name__ == '__main__': main()

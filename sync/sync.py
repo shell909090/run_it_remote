@@ -26,6 +26,18 @@ def reloca_path(filepath, origbase, newbase):
                   filepath, origbase, newbase, reloc)
     return reloc
 
+def sync_dir(filist, remote, local):
+    for fi in filist:
+        if fi['type'] != stat.S_IFDIR: continue
+        localpath = reloca_path(fi['path'], remote, local)
+
+        if path.lexists(localpath):
+            if not path.isdir(localpath):
+                logging.error('remote dir to local non-dir %s', localpath)
+                continue
+        else:
+            os.makedirs(localpath)
+
 def chk4file(filist, remote, local):
     f2sync = []
     for fi in filist:
@@ -49,9 +61,7 @@ def chk4file(filist, remote, local):
         f2sync.append((fi['path'], localpath))
     return f2sync
 
-def sync_back(rmt, remote, local, partten=None):
-    logging.warning('sync %s in %s to %s.' % (remote, str(rmt), local))
-    filist = rmt.apply(api.walkdir, remote, None, partten)
+def sync_file_back(rmt, remote, local, filist):
     f2sync = chk4file(filist, remote, local)
     try:
         datas = rmt.apply(api.read_files, [f[0] for f in f2sync])
@@ -63,11 +73,9 @@ def sync_back(rmt, remote, local, partten=None):
         for rmtpath, localpath in f2sync:
             data = rmt.apply(api.read_file, rmtpath)
             api.write_file(localpath, data)
-    return filist, f2sync
+    return f2sync
 
-def sync_to(rmt, remote, local, partten=None):
-    logging.warning('sync %s to %s in %s' % (local, remote, str(rmt)))
-    filist = api.walkdir(local, os.getcwd(), partten)
+def sync_file_to(rmt, remote, local, filist):
     f2sync = rmt.apply(chk4file, filist, local, remote)
     try:
         datas = api.read_files([f[0] for f in f2sync])
