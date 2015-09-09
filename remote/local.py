@@ -22,12 +22,17 @@ def remote_initlog(loglevel, fmt):
 
 class Remote(object):
 
-    def __init__(self, chan, args=None):
-        self.chan = chan
+    def __init__(self, chancls, protcls, host,
+                 args=None, chankw=None, protkw=None):
         self.g = {}
         self.fmaps = {}
         self.mc = set()
         self.args = args if args is not None else {}
+
+        if chankw is None: chankw = {}
+        chan = chancls(protcls.BOOTSTRAP, host, **chankw)
+        if protkw is None: protkw = {}
+        self.chan = protcls(chan, **protkw)
         self.send_remote_core()
         self.monkeypatch_std('stdout')
 

@@ -12,6 +12,7 @@ import logging
 import traceback
 import local
 import chan
+import encoding
 
 optdict = {}
 commands = []
@@ -62,9 +63,9 @@ def parse_channel():
 
 def parse_protocol():
     if '-p' not in optdict or optdict['-p'] == 'binary':
-        return chan.BinaryEncoding
+        return encoding.BinaryEncoding
     if optdict['-p'] == 'base64':
-        return chan.Base64Encoding
+        return encoding.Base64Encoding
     return name2obj(optdict['-p'])
 
 def parse_hostlist():
@@ -90,7 +91,7 @@ def prepare_modules(rmt, command):
 
 def retry(func, times):
     def inner(host):
-        for i in xrange(times):
+        for _ in xrange(times):
             try:
                 return func(host)
             except:
@@ -98,9 +99,9 @@ def retry(func, times):
         raise
     return inner
 
-def run_single_host(ChanCls):
+def run_single_host(chancls, protcls):
     def inner(host):
-        with local.Remote(ChanCls(host)) as rmt:
+        with local.Remote(chancls, protcls, host) as rmt:
             if '-l' in optdict:
                 rmt.monkeypatch_logging(optdict['-l'])
             for command in commands:
@@ -142,9 +143,8 @@ def main():
 
     chancls = parse_channel()
     protcls = parse_protocol()
-    ChanCls = type('C', (chancls, protcls), {})
 
-    run_host = run_single_host(ChanCls)
+    run_host = run_single_host(chancls, protcls)
     if '-s' in optdict:
         return map(run_host, hostlist)
     return parallel_map_t(run_host, hostlist)

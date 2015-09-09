@@ -6,69 +6,11 @@
 @copyright: 2015, Shell.Xu <shell909090@gmail.com>
 @license: BSD-3-clause
 '''
-import zlib
-import base64
-import struct
-import marshal
-import logging
-
-def show_msg(action, o):
-    if o is None:
-        logging.debug('%s: none', action)
-        return
-    if isinstance(o, (int, long)):
-        logging.debug('%s int: %d', action, o)
-        return
-    if isinstance(o, list):
-        d = str(o)
-    elif isinstance(o, basestring):
-        d = o
-    else:
-        logging.debug('%s: unknown', action)
-        return
-    if len(d) >= 200:
-        logging.debug('%s: too long', action)
-        return
-    logging.debug('%s: %s', action, d)
-
-class BinaryEncoding(object):
-
-    BOOTSTRAP = '''import sys, zlib, struct, marshal; l = struct.unpack('>I', sys.stdin.read(4))[0]; o = marshal.loads(zlib.decompress(sys.stdin.read(l))); exec compile(o, '<remote>', 'exec')'''
-
-    def send(self, o):
-        show_msg('send', o)
-        d = zlib.compress(marshal.dumps(o), 9)
-        self.write(struct.pack('>I', len(d)) + d)
-
-    def recv(self):
-        l = struct.unpack('>I', self.read(4))[0]
-        o = marshal.loads(zlib.decompress(self.read(l)))
-        show_msg('recv', o)
-        return o
-
-class Base64Encoding(object):
-
-    BOOTSTRAP = '''import sys, zlib, base64, struct, marshal; l = struct.unpack('>I', base64.b64decode(sys.stdin.read(8)))[0]; o = marshal.loads(zlib.decompress(base64.b64decode(sys.stdin.read(l)))); exec compile(o, '<remote>', 'exec')'''
-
-    @staticmethod
-    def get_args():
-        return {'protocol': 'Base64Encoding'}
-
-    def send(self, o):
-        show_msg('send', o)
-        d = base64.b64encode(zlib.compress(marshal.dumps(o), 9))
-        self.write(base64.b64encode(struct.pack('>I', len(d))) + d)
-
-    def recv(self):
-        l = struct.unpack('>I', base64.b64decode(self.read(8)))[0]
-        o = marshal.loads(zlib.decompress(base64.b64decode(self.read(l))))
-        show_msg('recv', o)
-        return o
+import subprocess
 
 class ProcessChannel(object):
 
     def __init__(self, cmd):
-        import subprocess
         self.p = subprocess.Popen(
             cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
@@ -94,16 +36,16 @@ class ProcessChannel(object):
 
 class LocalChannel(ProcessChannel):
 
-    def __init__(self):
-        ProcessChannel.__init__(self, ['python', '-c', BOOTSTRAP])
+    def __init__(self, bootstrap):
+        ProcessChannel.__init__(self, ['python', '-c', bootstrap])
 
     def __repr__(self):
         return '<local>'
 
 class SshChannel(ProcessChannel):
 
-    def __init__(self, host):
-        ProcessChannel.__init__(self, ['ssh', host, 'python', '-c', '"%s"' % self.BOOTSTRAP])
+    def __init__(self, bootstrap, host):
+        ProcessChannel.__init__(self, ['ssh', host, 'python', '-c', '"%s"' % bootstrap])
         self.host = host
 
     def __repr__(self):
@@ -111,13 +53,13 @@ class SshChannel(ProcessChannel):
 
 class SshSudoChannel(ProcessChannel):
 
-    def __init__(self, host, user=None):
+    def __init__(self, bootstrap, host, user=None):
         if user:
             cmd = ['ssh', host, 'sudo', '-u', user,
-                   'python', '-c', '"%s"' % self.BOOTSTRAP]
+                   'python', '-c', '"%s"' % bootstrap]
         else:
             cmd = ['ssh', host, 'sudo',
-                   'python', '-c', '"%s"' % self.BOOTSTRAP]
+                   'python', '-c', '"%s"' % bootstrap]
         ProcessChannel.__init__(self, cmd)
         self.host, self.user = host, user
 
@@ -126,9 +68,8 @@ class SshSudoChannel(ProcessChannel):
 
 class ParamikoChannel(object):
 
-    BOOTSTRAP = ''
-
-    # had to set auto_hostkey to True, for detail: https://github.com/paramiko/paramiko/issues/67
+    # had to set auto_hostkey to True
+    # for detail: https://github.com/paramiko/paramiko/issues/67
     def __init__(self, host, cmd, auto_hostkey=True, **kw):
         import paramiko
         self.ssh = paramiko.SSHClient()
@@ -160,8 +101,8 @@ class ParamikoChannel(object):
 
 class PSshChannel(ParamikoChannel):
 
-    def __init__(self, host, auto_hostkey=False, **kw):
-        cmd = 'python -c "%s"' % self.BOOTSTRAP
+    def __init__(self, bootstrap, host, auto_hostkey=False, **kw):
+        cmd = 'python -c "%s"' % bootstrap
         ParamikoChannel.__init__(self, host, cmd, auto_hostkey, **kw)
         self.host = host
 
@@ -170,11 +111,11 @@ class PSshChannel(ParamikoChannel):
 
 class PSshSudoChannel(ParamikoChannel):
 
-    def __init__(self, host, user=None, auto_hostkey=False, **kw):
+    def __init__(self, bootstrap, host, user=None, auto_hostkey=False, **kw):
         if user:
-            cmd = 'sudo -u %s python -c "%s"' % (user, self.BOOTSTRAP)
+            cmd = 'sudo -u %s python -c "%s"' % (user, bootstrap)
         else:
-            cmd = 'sudo python -c "%s"' % self.BOOTSTRAP
+            cmd = 'sudo python -c "%s"' % bootstrap
         ParamikoChannel.__init__(self, host, cmd, auto_hostkey, **kw)
         self.host, self.user = host, user
 

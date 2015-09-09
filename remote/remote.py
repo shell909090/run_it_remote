@@ -197,25 +197,33 @@ class Remote(object):
             fname = m.__name__ + '.' + fname
         return fname
 
-class BinaryEncoding(object):
+class BaseEncoding(object):
+
+    def __init__(self, chan):
+        self.chan = chan
+
+    def close(self):
+        self.chan.close()
+
+class BinaryEncoding(BaseEncoding):
 
     def send(self, o):
         d = zlib.compress(marshal.dumps(o))
-        self.write(struct.pack('>I', len(d)) + d)
+        self.chan.write(struct.pack('>I', len(d)) + d)
 
     def recv(self):
-        l = struct.unpack('>I', self.read(4))[0]
-        return marshal.loads(zlib.decompress(self.read(l)))
+        l = struct.unpack('>I', self.chan.read(4))[0]
+        return marshal.loads(zlib.decompress(self.chan.read(l)))
 
-class Base64Encoding(object):
+class Base64Encoding(BaseEncoding):
     
     def send(self, o):
         d = base64.b64encode(zlib.compress(marshal.dumps(o), 9))
-        self.write(base64.b64encode(struct.pack('>I', len(d))) + d)
+        self.chan.write(base64.b64encode(struct.pack('>I', len(d))) + d)
 
     def recv(self):
-        l = struct.unpack('>I', base64.b64decode(self.read(8)))[0]
-        o = marshal.loads(zlib.decompress(base64.b64decode(self.read(l))))
+        l = struct.unpack('>I', base64.b64decode(self.chan.read(8)))[0]
+        o = marshal.loads(zlib.decompress(base64.b64decode(self.chan.read(l))))
         return o
 
 class StdChannel(object):
@@ -233,18 +241,18 @@ class StdChannel(object):
         return self.stdin.read(n)
 
 def main():
-    protocol = BinaryEncoding
+    protcls = BinaryEncoding
     if 'protocol' in Args:
-        protocol = globals().get(Args['protocol'])
-    channel = type('C', (StdChannel, protocol), {})()
-    remote = Remote(channel)
+        protcls = globals().get(Args['protocol'])
+    channel = protcls(StdChannel())
+    rmt = Remote(channel)
 
     sys.modules['remote.remote'] = __import__(__name__)
     sys.meta_path.append(Finder(channel))
     channel.send(['result', None])
 
     try:
-        remote.loop()
+        rmt.loop()
     except Exception as err:
         import traceback
         channel.send(['except', str(err), traceback.format_exc()])
