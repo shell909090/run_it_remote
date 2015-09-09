@@ -8,10 +8,8 @@
 '''
 import os
 import stat
-import fnmatch
 import logging
 from os import path
-import yaml
 import api
 
 # TODO: 目录的来回同步
@@ -47,7 +45,7 @@ def chk4file(filist, remote, local):
         if path.lexists(localpath): # link is not ok.
             st = os.lstat(localpath)
             if not stat.S_ISREG(st.st_mode):
-                logging.error('remote file to local non-file %s' % local)
+                logging.error('remote file to local non-file %s', local)
                 continue
             if st.st_size == fi['size'] and api.gen_md5hash(localpath) == fi['md5']:
                 continue # done
@@ -55,7 +53,7 @@ def chk4file(filist, remote, local):
         # if base dir not exist, create it first.
         dirname = path.dirname(localpath)
         if not path.exists(dirname): # link is ok.
-            logging.info('create dir %s' % dirname)
+            logging.info('create dir %s', dirname)
             os.makedirs(dirname)
 
         f2sync.append((fi['path'], localpath))
@@ -86,7 +84,7 @@ def sync_file_to(rmt, remote, local, filist):
         logging.info("retry sync file one by one.")
         for localpath, rmtpath in f2sync:
             data = api.read_file(localpath)
-            rmt.apply(api.write_file, data)
+            rmt.apply(api.write_file, rmtpath, data)
     return filist, f2sync
 
 def apply_meta(filist):
