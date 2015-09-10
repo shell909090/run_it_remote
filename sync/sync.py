@@ -204,7 +204,7 @@ def run_commands(cmds):
         os.system(cmd)
 
 def sync_desc_back(desc):
-    import yaml
+    import yaml # import here 2 avoid import in remote
     allfilist = []
     with remote.connect(
             desc['hostname'],
@@ -227,7 +227,7 @@ def sync_desc_back(desc):
             fo.write(doc)
 
 def sync_desc_to(desc):
-    import yaml
+    import yaml # import here 2 avoid import in remote
     allfilist, ready2run = [], []
     with open('%s.meta' % desc['hostname'], 'rb') as fi:
         doc = fi.read()
