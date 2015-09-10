@@ -102,13 +102,3 @@ def walkdir(basedir, start=None, partten=None):
                 continue # pass
             if fi: filist.append(fi)
     return filist
-
-# def listdir(dirname, partten=None):
-#     filist = []
-#     for filename in os.listdir(dirname):
-#         if partten and not fnmatch.fnmatch(filename, partten):
-#             continue
-#         fi = gen_fileinfo(path.join(dirname, filename))
-#         if fi:
-#             filist.append(fi)
-#     return filist

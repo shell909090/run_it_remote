@@ -11,13 +11,24 @@ import sys
 import getopt
 import logging
 from os import path
-import yaml
 import remote
 import sync
 
 optdict = {}
 
+def initlog(lv, logfile=None):
+    rootlog = logging.getLogger()
+    if logfile: handler = logging.FileHandler(logfile)
+    else: handler = logging.StreamHandler()
+    handler.setFormatter(
+        logging.Formatter(
+            '%(asctime)s,%(msecs)03d [%(levelname)s] <%(name)s>: %(message)s',
+            '%H:%M:%S'))
+    rootlog.addHandler(handler)
+    rootlog.setLevel(lv)
+
 def get_desces():
+    import yaml
     dirname = '.'
     machine_allow = []
     if '-m' in optdict:
@@ -41,20 +52,23 @@ def get_desces():
 def main():
     '''
     -b: sync back.
+    -L: log file.
     -l: log level.
     -h: help, you just seen.
     -m: machine list.
     -t: sync to.
     '''
     global optdict
-    optlist, _ = getopt.getopt(sys.argv[1:], 'bl:hm:t')
+    optlist, _ = getopt.getopt(sys.argv[1:], 'bL:l:hm:t')
     optdict = dict(optlist)
     if '-h' in optdict:
         print main.__doc__
         return
 
-    if '-l' in optdict:
-        logging.basicConfig(level=optdict['-l'].upper())
+    loglevel = optdict.get('-l') or 'WARNING'
+    loglevel = loglevel.upper()
+    logfile = optdict.get('-L')
+    initlog(loglevel, logfile)
 
     if '-b' not in optdict and '-t' not in optdict:
         print 'you must set sync back or sync to.'

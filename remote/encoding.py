@@ -21,13 +21,16 @@ def show_msg(action, o):
         return
     if isinstance(o, list):
         d = str(o)
+        if len(d) >= 200:
+            d = '["%s", ...]' % str(o[0])
+        if len(d) >= 200:
+            d = 'list too long'
     elif isinstance(o, basestring):
         d = o
+        if len(d) >= 200:
+            d = 'str too long'
     else:
         logging.debug('%s: unknown', action)
-        return
-    if len(d) >= 200:
-        logging.debug('%s: too long', action)
         return
     logging.debug('%s: %s', action, d)
 

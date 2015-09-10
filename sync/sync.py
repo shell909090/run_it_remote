@@ -10,7 +10,6 @@ import os
 import stat
 import logging
 from os import path
-import yaml
 import remote
 import api
 import __main__
@@ -69,6 +68,7 @@ def chk4files(filist, rmtbase, localbase):
     return f2sync
 
 def sync_files_back(rmt, f2sync, filist):
+    if not f2sync: return
     try:
         datas = rmt.apply(api.read_files, [f[0] for f in f2sync])
         api.write_files(zip([f[1] for f in f2sync], datas))
@@ -81,6 +81,7 @@ def sync_files_back(rmt, f2sync, filist):
             api.write_file(localpath, data)
 
 def sync_files_to(rmt, f2sync, filist):
+    if not f2sync: return
     try:
         datas = api.read_files([f[0] for f in f2sync])
         rmt.apply(api.write_files, zip([f[1] for f in f2sync], datas))
@@ -121,16 +122,6 @@ def cache_default_attr(attrs):
         'group': common['groupname'],
         'mode': common['dirmode']}
 
-def apply_meta(filist):
-    for fi in filist:
-        mode = fi['mode']
-        logging.info('chmod %s %s', fi['path'], oct(mode))
-        os.chmod(fi['path'], mode)
-        uid = api.get_userid(fi['user'])
-        gid = api.get_groupid(fi['group'])
-        logging.info('chown %s %d %d', fi['path'], uid, gid)
-        os.lchown(fi['path'], uid, gid)
-
 def limit_attr(fi, attrs):
     rslt = {}
     for k, v in fi.iteritems():
@@ -140,20 +131,61 @@ def limit_attr(fi, attrs):
 
 def merge_filist(filist, attrs, rmtbase, localbase):
     attrfiles = attrs['filelist']
+
+    for rmtpath, fi in attrfiles.items():
+        fi['path'] = rmtpath
+        if fi['type'] != stat.S_IFLNK:
+            continue
+        fi = limit_attr(fi, set(['user', 'group', 'path', 'mode', 'type', 'link']))
+        fi2 = attrs['file'].copy()
+        fi2.update(fi)
+        yield fi2
+
     for fi in filist:
         fi2 = limit_attr(fi, set(['user', 'group', 'path', 'mode', 'type']))
 
-        if fi['type'] in (stat.S_IFREG, stat.S_IFLNK):
+        if fi['type'] == stat.S_IFREG:
             fi2.update(attrs['file'])
         elif fi['type'] == stat.S_IFDIR:
             fi2.update(attrs['dir'])
-        fi2.update()
 
         rmtpath = reloca_path(fi['path'], localbase, rmtbase)
         fi2['path'] = rmtpath
         if rmtpath in attrfiles:
             fi2.update(attrfiles[rmtpath])
         yield fi2
+
+def sync_link(fi):
+    localpath = fi['path']
+    logging.info('sync link %s', localpath)
+
+    if path.lexists(localpath):
+        logging.debug('link exists')
+        if not path.islink(localpath):
+            logging.error('remote link to local non-link %s', localpath)
+            return
+        # same check
+        if os.readlink(localpath) == fi['link']:
+            return True
+        else: # remove if not same
+            os.remove(localpath)
+    # create
+    os.symlink(fi['link'], localpath)
+    return True
+
+def apply_meta(filist):
+    for fi in filist:
+        if fi['type'] == stat.S_IFLNK:
+            if not sync_link(fi):
+                continue
+
+        mode = fi['mode']
+        logging.info('chmod %s %s', fi['path'], oct(mode))
+        os.chmod(fi['path'], mode)
+        uid = api.get_userid(fi['user'])
+        gid = api.get_groupid(fi['group'])
+        logging.info('chown %s %d %d', fi['path'], uid, gid)
+        os.lchown(fi['path'], uid, gid)
 
 def merge_ready2run(r2r):
     for syncinfo in r2r:
@@ -172,6 +204,7 @@ def run_commands(cmds):
         os.system(cmd)
 
 def sync_desc_back(desc):
+    import yaml
     allfilist = []
     with remote.connect(
             desc['hostname'],
@@ -194,6 +227,7 @@ def sync_desc_back(desc):
             fo.write(doc)
 
 def sync_desc_to(desc):
+    import yaml
     allfilist, ready2run = [], []
     with open('%s.meta' % desc['hostname'], 'rb') as fi:
         doc = fi.read()
