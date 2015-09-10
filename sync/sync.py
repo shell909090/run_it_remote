@@ -201,7 +201,7 @@ def merge_ready2run(r2r):
 def run_commands(cmds):
     for cmd in cmds:
         logging.warning('run: %s', cmd)
-        os.system(cmd)
+        logging.warning('result: %d', os.system(cmd))
 
 def sync_desc_back(desc):
     import yaml # import here 2 avoid import in remote

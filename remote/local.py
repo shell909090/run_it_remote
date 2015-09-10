@@ -23,8 +23,7 @@ def remote_initlog(loglevel, fmt):
 def autoset_loglevel(rmt):
     root = logging.getLogger('')
     loglevel = root.getEffectiveLevel()
-    if loglevel != logging.WARNING:
-        rmt.monkeypatch_logging(loglevel)
+    rmt.monkeypatch_logging(loglevel)
 
 def connect(host, p, **kw):
     p = list(p)
