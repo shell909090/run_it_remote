@@ -29,15 +29,19 @@ def connect(host, p, **kw):
     p = list(p)
     if Remote not in p:
         p.append(Remote)
+    kw['host'] = host
 
-    bootstrap = ''
-    for cls in p:
+    for cls in reversed(p):
         if hasattr(cls, 'get_bootstrap'):
-            bootstrap = cls.get_bootstrap(bootstrap)
-    if not bootstrap:
+            kw['bootstrap'] = cls.get_bootstrap(kw.get('bootstrap', ''))
+        if hasattr(cls, 'get_args'):
+            kw['args'] = cls.get_args(kw.get('args', {}))
+    if not kw.get('bootstrap'):
         raise Exception('no bootstrap')
+    logging.info('bootstrap: %s', kw['bootstrap'])
+    if kw.get('args'):
+        logging.info('args: %s', kw['args'])
 
-    kw.update({'bootstrap': bootstrap, 'host': host})
     for cls in p:
         kw['chan'] = cls(**kw)
     return kw['chan']
@@ -49,17 +53,14 @@ class Remote(object):
         self.fmaps = {}
         self.mc = set()
         self.chan = chan
-        self.args = args if args is not None else {}
-        self.send_remote_core()
+        self.send_remote_core(args if args is not None else {})
         self.monkeypatch_std('stdout')
 
-    def send_remote_core(self):
+    def send_remote_core(self, args):
         basedir = path.dirname(__file__)
         with open(path.join(basedir, 'remote.py'), 'r') as fi:
             d = fi.read()
-        logging.debug('remote args: %s', str(self.args))
-        d = d.replace('{} # replace Parameter here.', str(self.args))
-
+        d = d.replace('{} # replace Parameter here.', str(args))
         self.chan.send(d)
         self.loop()
 

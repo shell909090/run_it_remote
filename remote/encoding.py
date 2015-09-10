@@ -74,8 +74,8 @@ class Base64Encoding(BaseEncoding):
     def get_bootstrap(d):
         return '''import sys, zlib, base64, struct, marshal; l = struct.unpack('>I', base64.b64decode(sys.stdin.read(8)))[0]; o = marshal.loads(zlib.decompress(base64.b64decode(sys.stdin.read(l)))); exec compile(o, '<remote>', 'exec')'''
 
-    def get_args(self):
-        kw = BaseEncoding.get_args(self)
+    @staticmethod
+    def get_args(kw):
         kw.update({'protocol': 'Base64Encoding'})
         return kw
 
