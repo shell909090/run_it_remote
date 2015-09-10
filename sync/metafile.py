@@ -56,10 +56,10 @@ def transmode(fi, value):
     else:
         fi['mode'] = oct(fi['mode'])
 
-def filist_dump(filist, username=None, groupname=None, filemode=None, dirmode=None):
-    username = stat_dir_user(filist, username)
-    groupname = stat_dir_group(filist, groupname)
-    filemode, dirmode = stat_dir_mode(filist, filemode, dirmode)
+def filist_dump(filist, desc):
+    username = stat_dir_user(filist, desc.get('user'))
+    groupname = stat_dir_group(filist, desc.get('group'))
+    filemode, dirmode = stat_dir_mode(filist, desc.get('filemode'), desc.get('dirmode'))
     fileattrs = set(['path', 'type',])
 
     files = {}
@@ -82,18 +82,15 @@ def filist_dump(filist, username=None, groupname=None, filemode=None, dirmode=No
         files[fi['path']] = fi
         del fi['path']
 
-    import yaml
-    return yaml.dump({
+    return {
         'common': {
             'username': username,
             'groupname': groupname,
             'filemode': oct(filemode),
             'dirmode': oct(dirmode)},
-        'filelist': files})
+        'filelist': files}
 
 def filist_load(doc):
-    import yaml
-    doc = yaml.load(doc)
     common = doc['common']
     common['filemode'] = int(common['filemode'], 8)
     common['dirmode'] = int(common['dirmode'], 8)

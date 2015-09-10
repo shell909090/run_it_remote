@@ -10,12 +10,11 @@ import os
 import stat
 import logging
 from os import path
+import yaml
 import remote
 import api
 import __main__
 import metafile
-
-# TODO: 目录的来回同步
 
 def reloca_path(filepath, origbase, newbase):
     rpath = path.relpath(filepath, origbase)
@@ -27,10 +26,10 @@ def reloca_path(filepath, origbase, newbase):
                   filepath, origbase, newbase, reloc)
     return reloc
 
-def sync_dir(filist, remote, local):
+def sync_dir(filist, rmtbase, localbase):
     for fi in filist:
         if fi['type'] != stat.S_IFDIR: continue
-        localpath = reloca_path(fi['path'], remote, local)
+        localpath = reloca_path(fi['path'], rmtbase, localbase)
 
         if path.lexists(localpath):
             if not path.isdir(localpath):
@@ -38,12 +37,6 @@ def sync_dir(filist, remote, local):
                 continue
         else:
             os.makedirs(localpath)
-
-def chk4dir(dirname):
-    if path.exists(dirname): # link is ok.
-        return
-    logging.info('create dir %s', dirname)
-    os.makedirs(dirname)
 
 def chk4file(localpath, fi):
     st = os.lstat(localpath)
@@ -53,11 +46,17 @@ def chk4file(localpath, fi):
     if st.st_size == fi['size'] and api.gen_md5hash(localpath) == fi['md5']:
         return True # done
 
-def chk4files(filist, remote, local):
+def chk4dir(dirname):
+    if path.exists(dirname): # link is ok.
+        return
+    logging.info('create dir %s', dirname)
+    os.makedirs(dirname)
+
+def chk4files(filist, rmtbase, localbase):
     f2sync = []
     for fi in filist:
         if fi['type'] != stat.S_IFREG: continue
-        localpath = reloca_path(fi['path'], remote, local)
+        localpath = reloca_path(fi['path'], rmtbase, localbase)
 
         if path.lexists(localpath): # link is not ok.
             if chk4file(localpath, fi):
@@ -69,8 +68,7 @@ def chk4files(filist, remote, local):
         f2sync.append((fi['path'], localpath))
     return f2sync
 
-def sync_file_back(rmt, remote, local, filist):
-    f2sync = chk4files(filist, remote, local)
+def sync_files_back(rmt, f2sync, filist):
     try:
         datas = rmt.apply(api.read_files, [f[0] for f in f2sync])
         api.write_files(zip([f[1] for f in f2sync], datas))
@@ -81,10 +79,8 @@ def sync_file_back(rmt, remote, local, filist):
         for rmtpath, localpath in f2sync:
             data = rmt.apply(api.read_file, rmtpath)
             api.write_file(localpath, data)
-    return f2sync
 
-def sync_file_to(rmt, remote, local, filist):
-    f2sync = rmt.apply(chk4files, filist, local, remote)
+def sync_files_to(rmt, f2sync, filist):
     try:
         datas = api.read_files([f[0] for f in f2sync])
         rmt.apply(api.write_files, zip([f[1] for f in f2sync], datas))
@@ -95,7 +91,6 @@ def sync_file_to(rmt, remote, local, filist):
         for localpath, rmtpath in f2sync:
             data = api.read_file(localpath)
             rmt.apply(api.write_file, rmtpath, data)
-    return filist, f2sync
 
 def get_syncinfo(rmt, desc, syncinfo):
     rmtpath = syncinfo['remote']
@@ -143,7 +138,7 @@ def limit_attr(fi, attrs):
             rslt[k] = v
     return rslt
 
-def merge_filist(filist, attrs, rmtbase, local):
+def merge_filist(filist, attrs, rmtbase, localbase):
     attrfiles = attrs['filelist']
     for fi in filist:
         fi2 = limit_attr(fi, set(['user', 'group', 'path', 'mode', 'type']))
@@ -154,7 +149,7 @@ def merge_filist(filist, attrs, rmtbase, local):
             fi2.update(attrs['dir'])
         fi2.update()
 
-        rmtpath = reloca_path(fi['path'], local, rmtbase)
+        rmtpath = reloca_path(fi['path'], localbase, rmtbase)
         fi2['path'] = rmtpath
         if rmtpath in attrfiles:
             fi2.update(attrfiles[rmtpath])
@@ -177,46 +172,51 @@ def run_commands(cmds):
         os.system(cmd)
 
 def sync_desc_back(desc):
+    allfilist = []
     with remote.connect(
-            desc['hostname'], (remote.SshSudoChannel, remote.BinaryEncoding)) as rmt:
+            desc['hostname'],
+            (remote.SshSudoChannel, remote.BinaryEncoding)) as rmt:
         remote.autoset_loglevel(rmt)
-        allfilist = []
 
         for syncinfo in desc['synclist']:
-            rmtpath, local, partten = get_syncinfo(rmt, desc, syncinfo)
-            logging.warning('sync %s in %s to %s.', rmtpath, str(rmt), local)
+            rmtpath, localpath, partten = get_syncinfo(rmt, desc, syncinfo)
+            logging.warning('sync %s in %s to %s.', rmtpath, str(rmt), localpath)
 
             filist = rmt.apply(api.walkdir, rmtpath, None, partten)
-            sync_dir(filist, rmtpath, local)
-            sync_file_back(rmt, rmtpath, local, filist)
+            sync_dir(filist, rmtpath, localpath)
+            f2sync = chk4files(filist, rmtpath, localpath)
+            sync_files_back(rmt, f2sync, filist)
             allfilist.extend(filist)
 
-        doc = metafile.filist_dump(
-            allfilist,
-            desc.get('user'), desc.get('group'),
-            desc.get('filemode'), desc.get('dirmode'))
+        doc = metafile.filist_dump(allfilist, desc)
+        doc = yaml.dump(doc)
         with open('%s.meta' % desc['hostname'], 'wb') as fo:
             fo.write(doc)
 
 def sync_desc_to(desc):
-    with remote.connect(
-            desc['hostname'], (remote.SshSudoChannel, remote.BinaryEncoding)) as rmt:
-        remote.autoset_loglevel(rmt)
-        allfilist, ready2run = [], []
+    allfilist, ready2run = [], []
+    with open('%s.meta' % desc['hostname'], 'rb') as fi:
+        doc = fi.read()
+    attrs = yaml.load(doc)
+    attrs = metafile.filist_load(attrs)
+    cache_default_attr(attrs)
 
-        with open('%s.meta' % desc['hostname'], 'rb') as fi:
-            attrs = metafile.filist_load(fi.read())
-        cache_default_attr(attrs)
+    with remote.connect(
+            desc['hostname'],
+            (remote.SshSudoChannel, remote.BinaryEncoding)) as rmt:
+        remote.autoset_loglevel(rmt)
 
         for syncinfo in desc['synclist']:
-            rmtpath, local, partten = get_syncinfo(rmt, desc, syncinfo)
-            logging.warning('sync %s to %s in %s', local, rmtpath, str(rmt))
+            rmtpath, localpath, partten = get_syncinfo(rmt, desc, syncinfo)
+            logging.warning('sync %s to %s in %s', localpath, rmtpath, str(rmt))
 
-            filist = api.walkdir(local, os.getcwd(), partten)
-            f2sync = sync_file_to(rmt, rmtpath, local, filist)
+            filist = api.walkdir(localpath, os.getcwd(), partten)
+            rmt.apply(sync_dir, filist, localpath, rmtpath)
+            f2sync = rmt.apply(chk4files, filist, localpath, rmtpath)
+            sync_files_to(rmt, f2sync, filist)
             if f2sync:
                 ready2run.append(syncinfo)
-            filist = list(merge_filist(filist, attrs, rmtpath, local))
+            filist = list(merge_filist(filist, attrs, rmtpath, localpath))
             allfilist.extend(filist)
 
         rmt.apply(apply_meta, filist)
