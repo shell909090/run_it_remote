@@ -35,11 +35,10 @@
 
 ## 开发接口
 
-    chancls = type('C', (local.SshChannel, local.BinaryEncoding), {})
-    with chancls(hostname) as h:
-	    h.execute('xxx')
-		result = h.eval('xxx')
-		h.run_single('xxx; xxx')
+    with remote.connect(hostname, (remote.SshChannel, remote.BinaryEncoding)) as rmt:
+	    rmt.execute('xxx')
+		result = rmt.eval('xxx')
+		rmt.run_single('xxx; xxx')
 
 remote/__main__.py里有进一步例子。
 

@@ -101,7 +101,7 @@ def retry(func, times):
 
 def run_single_host(chancls, protcls):
     def inner(host):
-        with local.Remote(chancls, protcls, host) as rmt:
+        with local.connect(host, (chancls, protcls)) as rmt:
             local.autoset_loglevel(rmt)
             for command in commands:
                 rmt.single(command)

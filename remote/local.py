@@ -26,32 +26,40 @@ def autoset_loglevel(rmt):
     if loglevel != logging.WARNING:
         rmt.monkeypatch_logging(loglevel)
 
+def connect(host, p, **kw):
+    p = list(p)
+    if Remote not in p:
+        p.append(Remote)
+
+    bootstrap = ''
+    for cls in p:
+        if hasattr(cls, 'get_bootstrap'):
+            bootstrap = cls.get_bootstrap(bootstrap)
+    if not bootstrap:
+        raise Exception('no bootstrap')
+
+    kw.update({'bootstrap': bootstrap, 'host': host})
+    for cls in p:
+        kw['chan'] = cls(**kw)
+    return kw['chan']
+
 class Remote(object):
 
-    def __init__(self, chancls, protcls, host,
-                 args=None, chankw=None, protkw=None):
+    def __init__(self, chan, args=None, **kw):
         self.g = {}
         self.fmaps = {}
         self.mc = set()
+        self.chan = chan
         self.args = args if args is not None else {}
-
-        if chankw is None: chankw = {}
-        chan = chancls(protcls.BOOTSTRAP, host, **chankw)
-        if protkw is None: protkw = {}
-        self.chan = protcls(chan, **protkw)
         self.send_remote_core()
         self.monkeypatch_std('stdout')
 
     def send_remote_core(self):
-        kw = self.args.copy()
-        if hasattr(self.chan, 'get_args'):
-            kw.update(self.chan.get_args())
-
         basedir = path.dirname(__file__)
         with open(path.join(basedir, 'remote.py'), 'r') as fi:
             d = fi.read()
-        logging.debug('kw: %s', str(kw))
-        d = d.replace('{} # replace Parameter here.', str(kw))
+        logging.debug('remote args: %s', str(self.args))
+        d = d.replace('{} # replace Parameter here.', str(self.args))
 
         self.chan.send(d)
         self.loop()

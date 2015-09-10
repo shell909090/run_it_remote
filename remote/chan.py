@@ -36,7 +36,7 @@ class ProcessChannel(object):
 
 class LocalChannel(ProcessChannel):
 
-    def __init__(self, bootstrap):
+    def __init__(self, bootstrap, **kw):
         ProcessChannel.__init__(self, ['python', '-c', bootstrap])
 
     def __repr__(self):
@@ -44,7 +44,7 @@ class LocalChannel(ProcessChannel):
 
 class SshChannel(ProcessChannel):
 
-    def __init__(self, bootstrap, host):
+    def __init__(self, bootstrap, host, **kw):
         ProcessChannel.__init__(self, ['ssh', host, 'python', '-c', '"%s"' % bootstrap])
         self.host = host
 
@@ -53,7 +53,7 @@ class SshChannel(ProcessChannel):
 
 class SshSudoChannel(ProcessChannel):
 
-    def __init__(self, bootstrap, host, user=None):
+    def __init__(self, bootstrap, host, user=None, **kw):
         if user:
             cmd = ['ssh', host, 'sudo', '-u', user,
                    'python', '-c', '"%s"' % bootstrap]

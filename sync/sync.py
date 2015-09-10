@@ -177,9 +177,8 @@ def run_commands(cmds):
         os.system(cmd)
 
 def sync_desc_back(desc):
-    with remote.Remote(
-            remote.SshSudoChannel, remote.BinaryEncoding,
-            desc['hostname']) as rmt:
+    with remote.connect(
+            desc['hostname'], (remote.SshSudoChannel, remote.BinaryEncoding)) as rmt:
         remote.autoset_loglevel(rmt)
         allfilist = []
 
@@ -200,9 +199,8 @@ def sync_desc_back(desc):
             fo.write(doc)
 
 def sync_desc_to(desc):
-    with remote.Remote(
-            remote.SshSudoChannel, remote.BinaryEncoding,
-            desc['hostname']) as rmt:
+    with remote.connect(
+            desc['hostname'], (remote.SshSudoChannel, remote.BinaryEncoding)) as rmt:
         remote.autoset_loglevel(rmt)
         allfilist, ready2run = [], []
 

@@ -37,11 +37,10 @@ it will print all infomation about remote machine.
 
 ## How developer use it
 
-    chancls = type('C', (local.SshChannel, local.BinaryEncoding), {})
-    with chancls(hostname) as h:
-	    h.execute('xxx')
-		result = h.eval('xxx')
-		h.run_single('xxx; xxx')
+    with remote.connect(hostname, (remote.SshChannel, remote.BinaryEncoding)) as rmt:
+	    rmt.execute('xxx')
+		result = rmt.eval('xxx')
+		rmt.run_single('xxx; xxx')
 
 More example, see remote/__main__.py.
 

@@ -33,7 +33,7 @@ def show_msg(action, o):
 
 class BaseEncoding(object):
 
-    def __init__(self, chan):
+    def __init__(self, chan, **kw):
         self.chan = chan
 
     def close(self):
@@ -50,7 +50,9 @@ class BaseEncoding(object):
 
 class BinaryEncoding(BaseEncoding):
 
-    BOOTSTRAP = '''import sys, zlib, struct, marshal; l = struct.unpack('>I', sys.stdin.read(4))[0]; o = marshal.loads(zlib.decompress(sys.stdin.read(l))); exec compile(o, '<remote>', 'exec')'''
+    @staticmethod
+    def get_bootstrap(d):
+        return '''import sys, zlib, struct, marshal; l = struct.unpack('>I', sys.stdin.read(4))[0]; o = marshal.loads(zlib.decompress(sys.stdin.read(l))); exec compile(o, '<remote>', 'exec')'''
 
     def send(self, o):
         show_msg('send', o)
@@ -65,7 +67,9 @@ class BinaryEncoding(BaseEncoding):
 
 class Base64Encoding(BaseEncoding):
 
-    BOOTSTRAP = '''import sys, zlib, base64, struct, marshal; l = struct.unpack('>I', base64.b64decode(sys.stdin.read(8)))[0]; o = marshal.loads(zlib.decompress(base64.b64decode(sys.stdin.read(l)))); exec compile(o, '<remote>', 'exec')'''
+    @staticmethod
+    def get_bootstrap(d):
+        return '''import sys, zlib, base64, struct, marshal; l = struct.unpack('>I', base64.b64decode(sys.stdin.read(8)))[0]; o = marshal.loads(zlib.decompress(base64.b64decode(sys.stdin.read(l)))); exec compile(o, '<remote>', 'exec')'''
 
     def get_args(self):
         kw = BaseEncoding.get_args(self)
