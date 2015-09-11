@@ -53,12 +53,11 @@ class Remote(object):
         self.fmaps = {}
         self.mc = set()
         self.chan = chan
+        self.basedir = path.dirname(__file__)
         self.send_remote_core(args if args is not None else {})
-        self.monkeypatch_std('stdout')
 
     def send_remote_core(self, args):
-        basedir = path.dirname(__file__)
-        with open(path.join(basedir, 'remote.py'), 'r') as fi:
+        with open(path.join(self.basedir, 'remote.py'), 'r') as fi:
             d = fi.read()
         d = d.replace('{} # replace Parameter here.', str(args))
         self.chan.send(d)
@@ -196,6 +195,11 @@ class Remote(object):
         if name in self.mc: return
         self.execute('import ' + name)
         self.mc.add(name)
+
+    def monkeypatch_finder(self):
+        with open(path.join(self.basedir, 'finder.py'), 'r') as fi:
+            d = fi.read()
+        return self.execute(d)
 
     def monkeypatch_std(self, which):
         if which == 'stdout':

@@ -209,6 +209,8 @@ def sync_desc_back(desc):
     with remote.connect(
             desc['hostname'],
             (remote.SshSudoChannel, remote.BinaryEncoding)) as rmt:
+        rmt.monkeypatch_finder()
+        rmt.monkeypatch_std('stdout')
         remote.autoset_loglevel(rmt)
 
         for syncinfo in desc['synclist']:
@@ -238,6 +240,8 @@ def sync_desc_to(desc):
     with remote.connect(
             desc['hostname'],
             (remote.SshSudoChannel, remote.BinaryEncoding)) as rmt:
+        rmt.monkeypatch_finder()
+        rmt.monkeypatch_std('stdout')
         remote.autoset_loglevel(rmt)
 
         for syncinfo in desc['synclist']:

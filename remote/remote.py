@@ -10,84 +10,48 @@ import os, sys, imp, zlib, base64, struct, marshal
 
 Args = {} # replace Parameter here.
 
-def add_module(name):
-    if name not in sys.modules:
-        sys.modules[name] = imp.new_module(name)
-    return sys.modules[name]
+class StdChannel(object):
 
-class Loader(object):
+    def __init__(self):
+        self.stdin, self.stdout = sys.stdin, os.fdopen(os.dup(1), 'w')
+        os.close(1)
+        os.dup2(2, 1)
 
-    def __init__(self, finder, src, pathname, description):
-        self.finder, self.src = finder, src
-        self.pathname = pathname
-        self.description = description
+    def write(self, d):
+        self.stdout.write(d)
+        self.stdout.flush()
 
-    def exec_code_module(self, mod):
-        exec compile(self.src, self.pathname, 'exec') in mod.__dict__
+    def read(self, n):
+        return self.stdin.read(n)
 
-class SrcLoader(Loader):
+class BaseEncoding(object):
 
-    def load_module(self, fullname):
-        m = add_module(fullname)
-        m.__file__ = self.pathname
-        self.exec_code_module(m)
-        return m
+    def __init__(self, chan):
+        self.chan = chan
 
-class PycLoader(Loader):
+    def close(self):
+        self.chan.close()
 
-    def load_module(self, fullname):
-        import tempfile
-        with tempfile.NamedTemporaryFile('wb') as tmp:
-            tmp.write(self.src)
-            tmp.flush()
-            return imp.load_compiled(fullname, tmp.name)
+class BinaryEncoding(BaseEncoding):
 
-class ExtLoader(Loader):
+    def send(self, o):
+        d = zlib.compress(marshal.dumps(o))
+        self.chan.write(struct.pack('>I', len(d)) + d)
 
-    def load_module(self, fullname):
-        import tempfile
-        with tempfile.NamedTemporaryFile('wb') as tmp:
-            tmp.write(self.src)
-            tmp.flush()
-            return imp.load_dynamic(fullname, tmp.name)
+    def recv(self):
+        l = struct.unpack('>I', self.chan.read(4))[0]
+        return marshal.loads(zlib.decompress(self.chan.read(l)))
 
-class PkgLoader(Loader):
+class Base64Encoding(BaseEncoding):
+    
+    def send(self, o):
+        d = base64.b64encode(zlib.compress(marshal.dumps(o), 9))
+        self.chan.write(base64.b64encode(struct.pack('>I', len(d))) + d)
 
-    def load_module(self, fullname):
-        loader = self.finder.find_remote('__init__', [self.pathname,])
-        m = add_module(fullname)
-        m.__file__ = loader.pathname
-        m.__path__ = [self.pathname,]
-        m.__package__ = fullname
-        loader.exec_code_module(m)
-        return m
-
-class Finder(object):
-
-    def __init__(self, channel):
-        self.channel = channel
-
-    def find_module(self, name, path):
-        try: imp.find_module(name, path)
-        except ImportError:
-            r = self.find_remote(name, path)
-            if r is not None: return r
-            raise
-
-    def find_remote(self, name, path):
-        self.channel.send(['find_module', name.split('.')[-1], path])
-        r = self.channel.recv()
-        if r is None:
-            return
-        if r[2][2] not in self.type_map:
-            raise Exception('unknown module type')
-        return self.type_map[r[2][2]](self, *r)
-
-    type_map = {
-        imp.PY_SOURCE: SrcLoader,
-        imp.PY_COMPILED: PycLoader,
-        imp.C_EXTENSION: ExtLoader,
-        imp.PKG_DIRECTORY: PkgLoader,}
+    def recv(self):
+        l = struct.unpack('>I', base64.b64decode(self.chan.read(8)))[0]
+        o = marshal.loads(zlib.decompress(base64.b64decode(self.chan.read(l))))
+        return o
 
 class ChannelFile(object):
 
@@ -197,59 +161,16 @@ class Remote(object):
             fname = m.__name__ + '.' + fname
         return fname
 
-class BaseEncoding(object):
-
-    def __init__(self, chan):
-        self.chan = chan
-
-    def close(self):
-        self.chan.close()
-
-class BinaryEncoding(BaseEncoding):
-
-    def send(self, o):
-        d = zlib.compress(marshal.dumps(o))
-        self.chan.write(struct.pack('>I', len(d)) + d)
-
-    def recv(self):
-        l = struct.unpack('>I', self.chan.read(4))[0]
-        return marshal.loads(zlib.decompress(self.chan.read(l)))
-
-class Base64Encoding(BaseEncoding):
-    
-    def send(self, o):
-        d = base64.b64encode(zlib.compress(marshal.dumps(o), 9))
-        self.chan.write(base64.b64encode(struct.pack('>I', len(d))) + d)
-
-    def recv(self):
-        l = struct.unpack('>I', base64.b64decode(self.chan.read(8)))[0]
-        o = marshal.loads(zlib.decompress(base64.b64decode(self.chan.read(l))))
-        return o
-
-class StdChannel(object):
-
-    def __init__(self):
-        self.stdin, self.stdout = sys.stdin, os.fdopen(os.dup(1), 'w')
-        os.close(1)
-        os.dup2(2, 1)
-
-    def write(self, d):
-        self.stdout.write(d)
-        self.stdout.flush()
-
-    def read(self, n):
-        return self.stdin.read(n)
-
 def main():
-    global rmt
     protcls = BinaryEncoding
     if 'protocol' in Args:
         protcls = globals().get(Args['protocol'])
+    global channel
     channel = protcls(StdChannel())
+    global rmt
     rmt = Remote(channel)
 
-    sys.modules['remote.remote'] = __import__(__name__)
-    sys.meta_path.append(Finder(channel))
+    sys.modules['run_it_remote'] = __import__(__name__)
     channel.send(['result', None])
 
     try:
