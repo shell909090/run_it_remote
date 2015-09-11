@@ -66,11 +66,19 @@ class Finder(object):
         self.channel = channel
 
     def find_module(self, name, path):
-        try: imp.find_module(name, path)
+        try:
+            imp.find_module(name, path)
+            return
         except ImportError:
-            r = self.find_remote(name, path)
-            if r is not None: return r
-            raise
+            pass
+        try:
+            imp.find_module(name.split('.')[-1], None)
+            return
+        except ImportError:
+            pass
+        r = self.find_remote(name, path)
+        if r is not None: return r
+        raise
 
     def find_remote(self, name, path):
         self.channel.send(['find_module', name.split('.')[-1], path])

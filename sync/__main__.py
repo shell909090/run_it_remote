@@ -11,7 +11,7 @@ import sys
 import getopt
 import logging
 from os import path
-import remote
+import remote, remote.__main__
 import sync
 
 optdict = {}
@@ -80,6 +80,6 @@ def main():
         sync_desc = sync.sync_desc_back
     else:
         sync_desc = sync.sync_desc_to
-    remote.parallel_map_t(sync_desc, desces)
+    remote.__main__.parallel_map_t(sync_desc, desces)
 
 if __name__ == '__main__': main()

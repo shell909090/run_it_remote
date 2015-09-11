@@ -55,6 +55,8 @@ class Remote(object):
         self.chan = chan
         self.basedir = path.dirname(__file__)
         self.send_remote_core(args if args is not None else {})
+        self.monkeypatch_std('stdout')
+        self.monkeypatch_finder()
 
     def send_remote_core(self, args):
         with open(path.join(self.basedir, 'remote.py'), 'r') as fi:

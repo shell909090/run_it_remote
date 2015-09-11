@@ -102,8 +102,6 @@ def retry(func, times):
 def run_single_host(chancls, protcls):
     def inner(host):
         with local.connect(host, (chancls, protcls)) as rmt:
-            rmt.monkeypatch_finder()
-            rmt.monkeypatch_std('stdout')
             local.autoset_loglevel(rmt)
             for command in commands:
                 rmt.single(command)
@@ -114,6 +112,7 @@ def run_single_host(chancls, protcls):
 def main():
     '''
     -c: input hostlist from stdin.
+    -F: stop hook finder.
     -f: input hostlist from file.
     -j: dump result as json mode.
     -L: log file.
@@ -127,7 +126,7 @@ def main():
     '''
     global optdict
     global commands
-    optlist, commands = getopt.getopt(sys.argv[1:], 'cf:jL:l:hm:n:p:r:s')
+    optlist, commands = getopt.getopt(sys.argv[1:], 'cFf:jL:l:hm:n:p:r:s')
     optdict = dict(optlist)
     if '-h' in optdict:
         print main.__doc__
