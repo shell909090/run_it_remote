@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 '''
 @date: 2015-08-14
@@ -8,7 +8,8 @@
 '''
 import os
 import sys
-import imp
+import importlib.machinery
+import shlex
 import zlib
 import base64
 import struct
@@ -22,16 +23,16 @@ def show_msg(action, o):
         logging.debug('%s: none', action)
     elif isinstance(o, list):
         logging.debug('%s: %s', action, str(o))
-    elif isinstance(o, (int, long)):
+    elif isinstance(o, int):
         logging.debug('%s int: %d', action, o)
-    elif isinstance(o, basestring):
+    elif isinstance(o, str):
         logging.debug('%s str: %d', action, len(o))
     else:
         logging.debug('%s: unknown', action)
 
 class BinaryEncoding(object):
 
-    BOOTSTRAP = '''import sys, zlib, struct, marshal; l = struct.unpack('>I', sys.stdin.read(4))[0]; o = marshal.loads(zlib.decompress(sys.stdin.read(l))); exec compile(o, '<remote>', 'exec')'''
+    BOOTSTRAP = '''import sys, zlib, struct, marshal; l = struct.unpack('>I', sys.stdin.buffer.read(4))[0]; o = marshal.loads(zlib.decompress(sys.stdin.buffer.read(l))); exec(compile(o, '<remote>', 'exec'))'''
 
     def send(self, o):
         show_msg('send', o)
@@ -46,7 +47,7 @@ class BinaryEncoding(object):
 
 class Base64Encoding(object):
 
-    BOOTSTRAP = '''import sys, zlib, base64, struct, marshal; l = struct.unpack('>I', base64.b64decode(sys.stdin.read(8)))[0]; o = marshal.loads(zlib.decompress(base64.b64decode(sys.stdin.read(l)))); exec compile(o, '<remote>', 'exec')'''
+    BOOTSTRAP = '''import sys, zlib, base64, struct, marshal; l = struct.unpack('>I', base64.b64decode(sys.stdin.buffer.read(8)))[0]; o = marshal.loads(zlib.decompress(base64.b64decode(sys.stdin.buffer.read(l)))); exec(compile(o, '<remote>', 'exec'))'''
 
     def get_args(self):
         return {'protocol': 'Base64Encoding'}
@@ -70,14 +71,24 @@ class ProcessChannel(object):
             cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
     def close(self):
-        self.p.wait()
+        try:
+            self.p.stdin.close()
+        except BrokenPipeError:
+            pass
+        try:
+            self.p.wait(timeout=10)
+        except __import__('subprocess').TimeoutExpired:
+            self.p.kill()
+            self.p.wait()
+        self.p.stdout.close()
+        self.p.stderr.close()
 
     def write(self, d):
         try:
             self.p.stdin.write(d)
             self.p.stdin.flush()
         except:
-            print self.p.stderr.read()
+            print(self.p.stderr.read())
             raise
 
     def read(self, n):
@@ -86,13 +97,13 @@ class ProcessChannel(object):
             if not d: raise EOFError()
             return d
         except:
-            print self.p.stderr.read()
+            print(self.p.stderr.read())
             raise
 
 class LocalChannel(ProcessChannel):
 
-    def __init__(self):
-        ProcessChannel.__init__(self, ['python', '-c', BOOTSTRAP])
+    def __init__(self, host=None):
+        ProcessChannel.__init__(self, [sys.executable, '-I', '-c', self.BOOTSTRAP])
 
     def __repr__(self):
         return '<local>'
@@ -100,7 +111,7 @@ class LocalChannel(ProcessChannel):
 class SshChannel(ProcessChannel):
 
     def __init__(self, host):
-        ProcessChannel.__init__(self, ['ssh', host, 'python', '-c', '"%s"' % self.BOOTSTRAP])
+        ProcessChannel.__init__(self, ['ssh', host, 'python3', '-c', shlex.quote(self.BOOTSTRAP)])
         self.host = host
 
     def __repr__(self):
@@ -111,10 +122,10 @@ class SshSudoChannel(ProcessChannel):
     def __init__(self, host, user=None):
         if user:
             cmd = ['ssh', host, 'sudo', '-u', user,
-                   'python', '-c', '"%s"' % self.BOOTSTRAP]
+                   'python3', '-c', shlex.quote(self.BOOTSTRAP)]
         else:
             cmd = ['ssh', host, 'sudo',
-                   'python', '-c', '"%s"' % self.BOOTSTRAP]
+                   'python3', '-c', shlex.quote(self.BOOTSTRAP)]
         ProcessChannel.__init__(self, cmd)
         self.host, self.user = host, user
 
@@ -128,9 +139,9 @@ class ParamikoChannel(object):
     def __init__(self, host, cmd, auto_hostkey=True, **kw):
         import paramiko
         self.ssh = paramiko.SSHClient()
-        print self.ssh.get_host_keys().items()
+        print(list(self.ssh.get_host_keys().items()))
         self.ssh.load_system_host_keys()
-        print self.ssh.get_host_keys().items()
+        print(list(self.ssh.get_host_keys().items()))
         if auto_hostkey:
             self.ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         self.ssh.connect(host, **kw)
@@ -144,20 +155,20 @@ class ParamikoChannel(object):
             self.stdin.write(d)
             self.stdin.flush()
         except:
-            print self.stderr.read()
+            print(self.stderr.read())
             raise
 
     def read(self, n):
         try:
             return self.stdout.read(n)
         except:
-            print self.stderr.read()
+            print(self.stderr.read())
             raise
 
 class PSshChannel(ParamikoChannel):
 
     def __init__(self, host, auto_hostkey=False, **kw):
-        cmd = 'python -c "%s"' % self.BOOTSTRAP
+        cmd = 'python3 -c "%s"' % self.BOOTSTRAP
         ParamikoChannel.__init__(self, host, cmd, auto_hostkey, **kw)
         self.host = host
 
@@ -168,9 +179,9 @@ class PSshSudoChannel(ParamikoChannel):
 
     def __init__(self, host, user=None, auto_hostkey=False, **kw):
         if user:
-            cmd = 'sudo -u %s python -c "%s"' % (user, self.BOOTSTRAP)
+            cmd = 'sudo -u %s python3 -c "%s"' % (user, self.BOOTSTRAP)
         else:
-            cmd = 'sudo python -c "%s"' % self.BOOTSTRAP
+            cmd = 'sudo python3 -c "%s"' % self.BOOTSTRAP
         ParamikoChannel.__init__(self, host, cmd, auto_hostkey, **kw)
         self.host, self.user = host, user
 
@@ -210,8 +221,14 @@ class Remote(object):
         self.close()
 
     def close(self):
-        self.chan.send(['exit',])
-        self.chan.close()
+        if getattr(self, '_closed', False): return
+        self._closed = True
+        try:
+            self.chan.send(['exit',])
+        except (BrokenPipeError, EOFError):
+            pass
+        finally:
+            self.chan.close()
 
     def loop(self):
         while True:
@@ -263,20 +280,23 @@ class Remote(object):
             f.close()
         del self.fmaps[id]
 
-    def on_find_module(self, name, path):
-        try:
-            r = list(imp.find_module(name, path))
-            if r[0] is not None:
-                self.fmaps[id(r[0])] = r[0]
-                r[0] = id(r[0])
-            self.chan.send(r)
-        except ImportError: self.chan.send(None)
+    def on_find_module(self, name, search_path):
+        spec = importlib.machinery.PathFinder.find_spec(name, search_path)
+        if spec is None or spec.origin is None:
+            self.chan.send(None)
+            return
+        with open(spec.origin, 'rb') as source:
+            data = source.read()
+        kind = 'source'
+        if isinstance(spec.loader, importlib.machinery.ExtensionFileLoader): kind = 'extension'
+        elif isinstance(spec.loader, importlib.machinery.SourcelessFileLoader): kind = 'bytecode'
+        self.chan.send((spec.origin, list(spec.submodule_search_locations or []), kind, data))
 
     def on_except(self, err):
         raise Exception(err)
 
     def enable_aes(self):
-        import dh
+        from . import dh
         from Crypto.Cipher import AES
 
         # Diffie-Hellman key exchange
@@ -284,10 +304,10 @@ class Remote(object):
         self.chan.send(['dh', dh.gen_pubkey(pri_key), dh.gen_pubkey(pri_iv)])
         other_key, other_iv = self.loop()
         key = dh.gen_key(pri_key, other_key)
-        iv = dh.gen_key(pri_iv, other_iv)
+        iv = dh.gen_key(pri_iv, other_iv)[:16]
 
-        self.encryptor = AES.new(key, AES.MODE_CBC, IV=iv)
-        self.decryptor = AES.new(key, AES.MODE_CBC, IV=iv)
+        self.encryptor = AES.new(key, AES.MODE_CFB, iv=iv, segment_size=128)
+        self.decryptor = AES.new(key, AES.MODE_CFB, iv=iv, segment_size=128)
         origwrite, origread = self.chan.write, self.chan.read
         def write(d):
             return origwrite(self.encryptor.encrypt(d))

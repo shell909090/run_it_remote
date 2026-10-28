@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 '''
 @date: 2015-09-02
@@ -6,4 +6,4 @@
 @copyright: 2015, Shell.Xu <shell909090@gmail.com>
 @license: BSD-3-clause
 '''
-from api import *
+from .api import *

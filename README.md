@@ -1,3 +1,21 @@
+## Python 3 and uv
+
+Requires Python 3.11+. Install with `uv sync`; use `--extra ssh` for
+Paramiko or `--extra aes` for PyCryptodome.
+
+```sh
+uv run python -m remote -n local -m localhost -s -x '1 + 2'
+uv run --all-extras python -m unittest discover -v
+uv build
+```
+
+SSH targets require `python3`. Python 2 peers are no longer supported.
+Transferred bytecode and native extensions require matching Python/ABI and
+platforms. Prefer matching Python minor versions on both ends.
+The optional AES stream now uses CFB and a 16-byte IV rather than the broken
+CBC framing; it is incompatible with the old AES mode and does not authenticate
+peers. Use SSH for remote connections. See README.zh.md for details.
+
 # Run Your Code Remotely
 
 [Chinese README](README.zh.md)

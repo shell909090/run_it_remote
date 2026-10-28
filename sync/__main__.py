@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 '''
 @date: 2015-09-02
@@ -13,7 +13,7 @@ import getopt
 import logging
 from os import path
 import remote, remote.__main__
-import api, sync
+from . import api, sync
 
 def listdesc(dirname):
     import yaml
@@ -22,7 +22,7 @@ def listdesc(dirname):
             continue
         hostname = filename[:-5]
         with open(path.join(dirname, filename)) as fi:
-            desc = yaml.load(fi.read())
+            desc = yaml.safe_load(fi.read())
         if 'hostname' not in desc:
             desc['hostname'] = hostname
         yield desc
@@ -95,7 +95,7 @@ def sync_desc(desc):
             doc = api.filist_dump(
                 filist, desc.get('user'), desc.get('group'),
                 desc.get('filemode'), desc.get('dirmode'))
-            with open('%s.meta' % desc['hostname'], 'wb') as fo:
+            with open('%s.meta' % desc['hostname'], 'w', encoding='utf-8') as fo:
                 fo.write(doc)
         else:
             rmt.apply(sync.apply_meta, filist)
@@ -113,14 +113,14 @@ def main():
     optlist, args = getopt.getopt(sys.argv[1:], 'bl:hm:t')
     optdict = dict(optlist)
     if '-h' in optdict:
-        print main.__doc__
+        print(main.__doc__)
         return
 
     if '-l' in optdict:
         logging.basicConfig(level=optdict['-l'].upper())
 
     if '-b' not in optdict and '-t' not in optdict:
-        print 'you must set sync back or sync to.'
+        print('you must set sync back or sync to.')
         return
 
     machine_allow = []

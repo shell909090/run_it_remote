@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 '''
 @date: 2015-08-14
@@ -6,90 +6,47 @@
 @copyright: 2015, Shell.Xu <shell909090@gmail.com>
 @license: BSD-3-clause
 '''
-import os, sys, imp, zlib, struct, marshal, logging
+import os, sys, zlib, struct, marshal, logging, base64
+import importlib.util
+import importlib.machinery
+import tempfile
+import traceback
 
 Args = None # replace Parameter here.
 
-def add_module(name):
-    if name not in sys.modules:
-        sys.modules[name] = imp.new_module(name)
-    return sys.modules[name]
+class Loader:
+    def __init__(self, origin, locations, kind, data):
+        self.origin, self.locations, self.kind, self.data = origin, locations, kind, data
 
-class Loader(object):
+    def create_module(self, spec):
+        if self.kind == 'extension':
+            self.temp = tempfile.TemporaryDirectory()
+            filename = os.path.join(self.temp.name, os.path.basename(self.origin))
+            with open(filename, 'wb') as output: output.write(self.data)
+            self.native = importlib.machinery.ExtensionFileLoader(spec.name, filename)
+            native_spec = importlib.util.spec_from_file_location(spec.name, filename, loader=self.native)
+            return self.native.create_module(native_spec)
+        return None
 
-    def __init__(self, finder, srcfid, pathname, description):
-        self.finder, self.src = finder, None
-        self.pathname, self.description = pathname, description
-        if srcfid is not None:
-            with ChannelFile(finder.channel, srcfid) as srcfile:
-                self.src = srcfile.read()
+    def exec_module(self, module):
+        module.__file__ = self.origin
+        if self.kind == 'extension':
+            self.native.exec_module(module)
+        else:
+            code = marshal.loads(self.data[16:]) if self.kind == 'bytecode' else compile(self.data, self.origin, 'exec')
+            exec(code, module.__dict__)
 
-    def exec_code_module(self, mod):
-        exec compile(self.src, self.pathname, 'exec') in mod.__dict__
+class Finder:
+    def __init__(self, channel): self.channel = channel
 
-class SrcLoader(Loader):
-
-    def load_module(self, fullname):
-        m = add_module(fullname)
-        m.__file__ = self.pathname
-        self.exec_code_module(m)
-        return m
-
-class PycLoader(Loader):
-
-    def load_module(self, fullname):
-        import tempfile
-        with tempfile.NamedTemporaryFile('wb') as tmp:
-            tmp.write(self.src)
-            tmp.flush()
-            return imp.load_compiled(fullname, tmp.name)
-
-class ExtLoader(Loader):
-
-    def load_module(self, fullname):
-        import tempfile
-        with tempfile.NamedTemporaryFile('wb') as tmp:
-            tmp.write(self.src)
-            tmp.flush()
-            return imp.load_dynamic(fullname, tmp.name)
-
-class PkgLoader(Loader):
-
-    def load_module(self, fullname):
-        loader = self.finder.find_remote('__init__', [self.pathname,])
-        m = add_module(fullname)
-        m.__file__ = loader.pathname
-        m.__path__ = [self.pathname,]
-        m.__package__ = fullname
-        loader.exec_code_module(m)
-        return m
-
-class Finder(object):
-
-    def __init__(self, channel):
-        self.channel = channel
-
-    def find_module(self, name, path):
-        try: imp.find_module(name, path)
-        except ImportError:
-            r = self.find_remote(name, path)
-            if r is not None: return r
-            raise
-
-    def find_remote(self, name, path):
-        self.channel.send(['find_module', name.split('.')[-1], path])
-        r = self.channel.recv()
-        if r is None:
-            return
-        if r[2][2] not in self.type_map:
-            raise Exception('unknown module type')
-        return self.type_map[r[2][2]](self, *r)
-
-    type_map = {
-        imp.PY_SOURCE: SrcLoader,
-        imp.PY_COMPILED: PycLoader,
-        imp.C_EXTENSION: ExtLoader,
-        imp.PKG_DIRECTORY: PkgLoader,}
+    def find_spec(self, fullname, path=None, target=None):
+        self.channel.send(['find_module', fullname, path])
+        result = self.channel.recv()
+        if result is None: return None
+        loader = Loader(*result)
+        spec = importlib.util.spec_from_loader(fullname, loader, is_package=bool(loader.locations))
+        if loader.locations: spec.submodule_search_locations = loader.locations
+        return spec
 
 class ChannelFile(object):
 
@@ -144,11 +101,11 @@ class Remote(object):
         # Diffie-Hellman key exchange
         pri_key, pri_iv = dh.gen_prikey(), dh.gen_prikey()
         key = dh.gen_key(pri_key, other_key)
-        iv = dh.gen_key(pri_iv, other_iv)
+        iv = dh.gen_key(pri_iv, other_iv)[:16]
         self.chan.send(['result', [dh.gen_pubkey(pri_key), dh.gen_pubkey(pri_iv)]])
 
-        self.encryptor = AES.new(key, AES.MODE_CBC, IV=iv)
-        self.decryptor = AES.new(key, AES.MODE_CBC, IV=iv)
+        self.encryptor = AES.new(key, AES.MODE_CFB, iv=iv, segment_size=128)
+        self.decryptor = AES.new(key, AES.MODE_CFB, iv=iv, segment_size=128)
         origwrite, origread = self.chan.write, self.chan.read
         def write(d):
             return origwrite(self.encryptor.encrypt(d))
@@ -161,7 +118,7 @@ class Remote(object):
     def open(self, filepath, mode):
         self.chan.send(['open', filepath, mode])
         r = self.chan.recv()
-        return ChannelFile(self, r)
+        return ChannelFile(self.chan, r)
 
     def getstd(self, which):
         self.chan.send(['std', which])
@@ -220,7 +177,7 @@ class Base64Encoding(object):
 class StdChannel(object):
 
     def __init__(self):
-        self.stdin, self.stdout = sys.stdin, os.fdopen(os.dup(1), 'w')
+        self.stdin, self.stdout = sys.stdin.buffer, os.fdopen(os.dup(1), 'wb')
         os.close(1)
         os.dup2(2, 1)
 
@@ -248,6 +205,7 @@ def main():
         protocol = globals().get(Args['protocol'])
     channel = type('C', (StdChannel, protocol), {})()
     remote = Remote(channel)
+    globals()["channel"] = remote
 
     sys.modules['remote.remote'] = __import__(__name__)
     sys.meta_path.append(Finder(channel))

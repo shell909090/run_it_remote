@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 '''
 @date: 2015-03-11
@@ -7,9 +7,8 @@
 import os, re, sys, json, getopt, subprocess
 
 def check_output(x):
-    p = subprocess.Popen(x, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    r = p.stdout.read()
-    p.wait()
+    p = subprocess.Popen(x, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    r, _ = p.communicate()
     return r.splitlines()
 
 def split_reader(src, sep, keys, stopblank=False):
@@ -32,7 +31,7 @@ def dmidecode():
     except:
         exc_info = sys.exc_info()
         yield 'Base', 'error'
-        raise exc_info[0], exc_info[1], exc_info[2]
+        raise exc_info[0](exc_info[1]).with_traceback(exc_info[2])
     for line in src:
         if not line or line.startswith('Handle'): continue
         name = line.split()[0]
@@ -45,7 +44,7 @@ def dmidecode():
 
 SMART_INFO = ['vendor', 'model family', 'product', 'device model', 
               'user capacity', 'logical block size', 'serial number']
-re_disk = re.compile('(sd[a-z]+)\d*')
+re_disk = re.compile(r'(sd[a-z]+)\d*')
 def diskinfo():
     disks = set()
     with open('/proc/diskstats', 'r') as fdisk:
@@ -61,7 +60,7 @@ def diskinfo():
         except:
             exc_info = sys.exc_info()
             yield 'Disk', {'disk': disk, 'state': 'error'}
-            raise exc_info[0], exc_info[1], exc_info[2]
+            raise exc_info[0](exc_info[1]).with_traceback(exc_info[2])
 
 def diskusage():
     df = check_output(['df', '-k', '-P'])
@@ -69,9 +68,10 @@ def diskusage():
         d = line.strip().split()
         yield 'DiskUsage', {'dev': d[0], 'total': d[1], 'used': d[2], 'mountpoint': d[5]}
 
-re_iface = re.compile('^(\d+): (.+): <(.*)> (.*)')
+re_iface = re.compile(r'^(\d+): (.+): <(.*)> (.*)')
 def ipaddr():
     iface, ips, macs = '', [], []
+    rslt = {}
     for line in check_output(['ip', 'addr']):
         if line.startswith(' '):
             r = line.strip().split()
@@ -79,18 +79,13 @@ def ipaddr():
             elif r[0] == 'link/ether': macs.append(r[1])
             continue
         if iface:
-            try: unicode(iface)
-            except UnicodeDecodeError:
-                iface = 'Base64ed:' + base64.b64code(iface)
             rslt.update({'iface': iface, 'ipaddr': ips, 'ether': macs})
             yield rslt
             ips, macs = [], []
         m = re_iface.match(line)
         i = iter(m.group(4).split())
         iface, rslt = m.group(2), dict(zip(i, i))
-    try: unicode(iface)
-    except UnicodeDecodeError:
-        iface = 'Base64ed:' + base64.b64code(iface)
+    if not iface: return
     rslt.update({'iface': iface, 'ipaddr': ips, 'ether': macs})
     yield rslt
 
@@ -108,7 +103,7 @@ def ethinfo():
 def memusage():
     free = check_output(['free', '-m'])
     total = int(free[1].split()[1])
-    used = int(free[2].split()[2])
+    used = int(free[1].split()[2])
     yield 'MemoryUsage', {'total': total, 'used': used}
 
 def hostname():
@@ -135,7 +130,7 @@ def main():
     optlist, args = getopt.getopt(sys.argv[1:], 'hi')
     optdict = dict(optlist)
     if '-h' in optdict:
-        print main.__doc__
+        print(main.__doc__)
         return
 
     info = all_info()

@@ -1,3 +1,26 @@
+## Python 3 与 uv
+
+需要 Python 3.11+。通过 `uv sync` 安装；Paramiko 通道使用
+`uv sync --extra ssh`，可选 AES 功能使用 `uv sync --extra aes`。
+
+```sh
+uv run python -m remote -n local -m localhost -s -x '1 + 2'
+uv run python -m remote -m host1 -s -x 'rmtfunc.get_hostname()'
+uv run python -m sync -h
+uv run --all-extras python -m unittest discover -v
+uv build
+```
+
+SSH 目标机需提供 `python3`。传输协议不兼容旧 Python 2 版本。
+源码模块可从控制端传输；字节码和 C 扩展要求两端 Python 版本、ABI、
+操作系统及架构兼容，推荐两端使用相同 Python 小版本。
+依赖由 `pyproject.toml` 声明、`uv.lock` 锁定；PyYAML 为核心依赖，
+Paramiko 和 PyCryptodome 为可选依赖。
+
+旧 AES 实现的 IV 长度和 CBC 分块不适合现有字节流协议，现改为 16 字节 IV
+和 CFB 流式加解密，不能与旧 AES 协议混用。该可选层不提供身份认证，
+远程连接仍应使用 SSH。
+
 # Run Your Code Remotely
 
 ## 如何使用

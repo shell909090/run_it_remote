@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 '''
 @date: 2015-08-14
@@ -10,7 +10,7 @@ import sys, logging, subprocess
 # import bs4
 
 def callback(hostname):
-    print 'hostname: ' + hostname
+    print('hostname: ' + hostname)
 
 def get_hostname_cb():
     from remote import remote
@@ -24,7 +24,7 @@ def get_hostname():
 
 def get_dpkg():
     rslt = []
-    for i, line in enumerate(subprocess.check_output(['dpkg', '-l']).splitlines()):
+    for i, line in enumerate(subprocess.check_output(['dpkg', '-l'], text=True).splitlines()):
         if i < 6: continue
         # if line.startswith('ii'): continue
         line = line.strip()

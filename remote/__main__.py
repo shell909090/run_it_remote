@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 '''
 @date: 2015-08-30
@@ -11,7 +11,7 @@ import json
 import getopt
 import logging
 import traceback
-import local
+from . import local
 
 def initlog(lv, logfile=None):
     rootlog = logging.getLogger()
@@ -31,7 +31,7 @@ def parallel_map_t(func, it, concurrent=20):
         try:
             return func(i)
         except Exception as err:
-            print traceback.format_exc()
+            print(traceback.format_exc())
     for i in it:
         pool.apply_async(wrapper, (i,))
     pool.close()
@@ -43,10 +43,11 @@ def get_source(infile):
 
 def name2obj(name):
     module_name, funcname = name.rsplit('.', 1)
-    module = __import__(module_name)
+    module = __import__('importlib').import_module(module_name)
     return getattr(module, funcname)
 
 def parse_channel():
+    if optdict.get('-n') == 'local': return local.LocalChannel
     if '-n' not in optdict or optdict['-n'] == 'ssh':
         return local.SshChannel
     if optdict['-n'] == 'sudo':
@@ -72,8 +73,8 @@ def parse_hostlist():
         return get_source(fi)
     elif '-m' in optdict:
         return optdict['-m'].split(',')
-    print 'can\'t find host list.'
-    print 'you may define by stdin(-c), file(-f) or machine(-m).'
+    print('can\'t find host list.')
+    print('you may define by stdin(-c), file(-f) or machine(-m).')
     return None
 
 def prepare_modules(rmt, command):
@@ -96,9 +97,9 @@ def run_eval_host(ChanCls):
                 result = rmt.eval(command)
                 result = json.dumps(result)
                 if '-M' in optdict:
-                    print '%s: %s' % (host, result)
+                    print('%s: %s' % (host, result))
                 else:
-                    print result
+                    print(result)
     return inner
 
 def run_single_host(ChanCls):
@@ -108,7 +109,7 @@ def run_single_host(ChanCls):
     def inner(host):
         with local.Remote(ChanCls(host), args=args) as rmt:
             for command in commands:
-                print '-----%s output: %s-----' % (host, command)
+                print('-----%s output: %s-----' % (host, command))
                 rmt.single(command)
     return inner
 
@@ -132,7 +133,7 @@ def main():
     optlist, commands = getopt.getopt(sys.argv[1:], 'cf:jL:l:hMm:n:p:sx')
     optdict = dict(optlist)
     if '-h' in optdict:
-        print main.__doc__
+        print(main.__doc__)
         return
 
     loglevel = optdict.get('-l') or 'WARNING'
@@ -154,7 +155,7 @@ def main():
         run_host = run_single_host(ChanCls)
 
     if '-s' in optdict:
-        return map(run_host, hostlist)
+        return list(map(run_host, hostlist))
     return parallel_map_t(run_host, hostlist)
 
 if __name__ == '__main__': main()

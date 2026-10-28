@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 '''
 @date: 2015-09-02
@@ -57,7 +57,7 @@ def get_groupname(gid):
 
 @memorized
 def get_groupid(groupname):
-    return grp.getgrnam(groupname).pw_gid
+    return grp.getgrnam(groupname).gr_gid
 
 def gen_md5hash(filepath):
     try:
@@ -98,8 +98,8 @@ def walkdir(basedir, start=None, partten=None):
                 if not fnmatch.fnmatch(rpath, partten):
                     continue
             fi = gen_fileinfo(filepath, start)
-            if 'size' in fi and fi['size'] > MAX_SYNC_SIZE:
-                logging.error('file %s size %d out of limit' % (localpath, fi['size']))
+            if fi and 'size' in fi and fi['size'] > MAX_SYNC_SIZE:
+                logging.error('file %s size %d out of limit' % (filepath, fi['size']))
                 continue # pass
             if fi: filist.append(fi)
     return filist
@@ -146,7 +146,7 @@ def stat_dir_mode(filist, filemode=None, dirmode=None):
 
 def limit_attr(fi, attrs):
     rslt = {}
-    for k, v in fi.iteritems():
+    for k, v in fi.items():
         if k in attrs:
             rslt[k] = v
     return rslt
@@ -158,7 +158,7 @@ filetype_map = {
 }
 
 def reversed_map(m, v1):
-    for k, v in m.iteritems():
+    for k, v in m.items():
         if v == v1:
             return k
 
@@ -177,7 +177,7 @@ def filist_dump(filist, username=None, groupname=None, filemode=None, dirmode=No
     files = {}
     for fi in filist:
         if 'md5' in fi: del fi['md5']
-        if 'size' in fi: del fi['size']
+        if fi and 'size' in fi: del fi['size']
 
         if fi['user'] == username: del fi['user']
         if fi['group'] == groupname: del fi['group']
@@ -195,23 +195,23 @@ def filist_dump(filist, username=None, groupname=None, filemode=None, dirmode=No
         del fi['path']
 
     import yaml
-    return yaml.dump({
+    return yaml.safe_dump({
         'common': {
             'username': username,
             'groupname': groupname,
-            'filemode': oct(filemode),
-            'dirmode': oct(dirmode)},
+            'filemode': oct(filemode if filemode is not None else 0o644),
+            'dirmode': oct(dirmode if dirmode is not None else 0o755)},
         'filelist': files})
 
 def filist_load(doc):
     import yaml
-    doc = yaml.load(doc)
+    doc = yaml.safe_load(doc)
     common = doc['common']
     username, groupname = common['username'], common['groupname']
     common['filemode'] = int(common['filemode'], 8)
     common['dirmode'] = int(common['dirmode'], 8)
 
-    for filepath, fi in doc['filelist'].iteritems():
+    for filepath, fi in doc['filelist'].items():
         fi['path'] = filepath
         fi['type'] = reversed_map(filetype_map, fi['type'])
         if 'mode' in fi:

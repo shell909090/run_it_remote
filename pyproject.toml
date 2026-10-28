@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "run-it-remote"
+version = "0.1.0"
+description = "Remote Python execution and file synchronization"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "BSD-3-Clause"
+dependencies = ["PyYAML>=6.0.3"]
+
+[project.optional-dependencies]
+ssh = ["paramiko>=4"]
+aes = ["pycryptodome>=3.23"]
+
+[tool.setuptools]
+packages = ["remote", "sync"]
+py-modules = ["rmtfunc", "hwinfo"]
